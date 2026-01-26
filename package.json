@@ -1,0 +1,80 @@
+{
+  "name": "univer-file-import",
+  "version": "1.0.0",
+  "description": "Excel/CSV 文件导入工具，用于将 Excel 和 CSV 文件转换为 Univer 工作簿数据格式",
+  "keywords": [
+    "univer",
+    "excel",
+    "xlsx",
+    "xls",
+    "csv",
+    "import",
+    "spreadsheet",
+    "workbook"
+  ],
+  "author": "oumingliang",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run build",
+    "lint": "eslint src --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "nanoid": "^5.0.7"
+  },
+  "peerDependencies": {
+    "@univerjs/core": ">=0.5.0",
+    "@univerjs/presets": ">=0.5.0"
+  },
+  "peerDependenciesMeta": {
+    "@univerjs/core": {
+      "optional": false
+    },
+    "@univerjs/presets": {
+      "optional": false
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@univerjs/core": "^0.5.0",
+    "@univerjs/presets": "^0.5.0",
+    "rimraf": "^5.0.5",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": ""
+  },
+  "bugs": {
+    "url": ""
+  },
+  "homepage": ""
+}
