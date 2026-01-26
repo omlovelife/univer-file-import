@@ -58,14 +58,11 @@ const result = await importFile(file, {
 const { workbookData, images } = result;
 
 // 使用 workbookData 创建 Univer 工作簿
-// ...
+const workbook = univerAPI.createWorkbook(workbookData);
 
 // 如果需要插入图片（在工作簿创建后）
 if (images.length > 0) {
-  const sheetIdMapping = new Map(); // 原始 sheetId -> 实际 sheetId 的映射
-  // 填充 sheetIdMapping...
-  
-  const insertResult = await result.insertImages(univerAPI, sheetIdMapping, {
+  const insertResult = await result.insertImages(univerAPI, {
     defaultType: ImageType.FLOATING,
     continueOnError: true,
     onProgress: (current, total) => {
@@ -134,7 +131,7 @@ const workbookData = getWorkbookDataBySheets([sheet], '我的工作簿');
 
 - `workbookData: IWorkbookData` - Univer 工作簿数据
 - `images: ImportedImage[]` - 导入的图片列表
-- `insertImages(univerAPI, sheetIdMapping, options?)` - 插入图片的方法
+- `insertImages(univerAPI, options?)` - 插入图片的方法
 
 ### `importCsv(file, options?)`
 
@@ -203,8 +200,6 @@ interface ImportedImage {
   description?: string;
 }
 
-type SheetIdMapping = Map<string, string>;
-
 interface FileImportOptions {
   includeImages?: boolean;
 }
@@ -213,6 +208,16 @@ interface ImageInsertOptions {
   defaultType?: ImageType;
   continueOnError?: boolean;
   onProgress?: (current: number, total: number) => void;
+}
+
+interface FileImportResult {
+  workbookData: IWorkbookData;
+  images: ImportedImage[];
+  insertImages: (univerAPI: unknown, options?: ImageInsertOptions) => Promise<{
+    success: number;
+    failed: number;
+    errors: Array<{ image: ImportedImage; error: Error }>;
+  }>;
 }
 ```
 

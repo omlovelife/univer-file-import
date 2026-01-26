@@ -1724,11 +1724,22 @@ function convertCellType(value: string): unknown {
 
 /**
  * 插入图片到工作表
+ *
+ * @description
+ * 该函数将导入的图片插入到指定的工作表中。支持两种图片类型：
+ * - 浮动图片 (FLOATING): 可以自由放置在工作表上方
+ * - 单元格图片 (CELL): 嵌入到特定单元格中
+ *
+ * 图片通过 sheetId 直接定位工作表。
+ *
+ * @param univerAPI - Univer API 实例
+ * @param images - 要插入的图片列表
+ * @param options - 插入选项
+ * @returns 插入结果，包含成功数、失败数和错误详情
  */
 async function insertImagesAfterImport(
   univerAPI: unknown,
   images: ImportedImage[],
-  sheetIdMapping: SheetIdMapping,
   options: {
     defaultType?: ImageType;
     continueOnError?: boolean;
@@ -1787,10 +1798,10 @@ async function insertImagesAfterImport(
     const image = images[i];
 
     try {
-      const actualSheetId = sheetIdMapping.get(image.sheetId) || image.sheetId;
-      const fWorksheet = fWorkbook.getSheetBySheetId(actualSheetId);
+      // 直接通过 sheetId 查找工作表
+      const fWorksheet = fWorkbook.getSheetBySheetId(image.sheetId);
       if (!fWorksheet) {
-        throw new Error(`找不到工作表: ${image.sheetName} (ID: ${actualSheetId})`);
+        throw new Error(`找不到工作表: ${image.sheetName} (ID: ${image.sheetId})`);
       }
 
       const imageType = image.type || defaultType;
@@ -1885,18 +1896,41 @@ export interface FileImportOptions {
 
 /**
  * 文件导入结果
+ *
+ * @description
+ * 包含工作簿数据、导入的图片列表以及插入图片的便捷方法。
+ * 图片信息在导入时被提取，可以在工作簿创建后通过 `insertImages` 方法插入。
  */
 export interface FileImportResult {
-  /** 工作簿数据 */
+  /** 工作簿数据，可直接用于创建 Univer 工作簿 */
   workbookData: IWorkbookData;
-  /** 导入的图片列表 */
+  /** 导入的图片列表，包含图片的位置、尺寸等信息 */
   images: ImportedImage[];
   /**
-   * 插入图片的方法
+   * 插入图片到工作表的便捷方法
+   *
+   * @description
+   * 将导入的图片插入到已创建的工作簿中。该方法会通过 sheetId
+   * 直接查找对应的工作表。
+   *
+   * @param univerAPI - Univer API 实例（通常是 FUniver 对象）
+   * @param options - 可选的插入配置项
+   * @returns Promise，解析为插入结果统计
+   *
+   * @example
+   * ```ts
+   * const result = await importFile(file);
+   * if (result.images.length > 0) {
+   *   const insertResult = await result.insertImages(univerAPI, {
+   *     defaultType: ImageType.FLOATING,
+   *     onProgress: (current, total) => console.log(`${current}/${total}`)
+   *   });
+   *   console.log(`成功: ${insertResult.success}, 失败: ${insertResult.failed}`);
+   * }
+   * ```
    */
   insertImages: (
     univerAPI: unknown,
-    sheetIdMapping: SheetIdMapping,
     options?: ImageInsertOptions,
   ) => Promise<{
     success: number;
@@ -1908,21 +1942,44 @@ export interface FileImportResult {
 /**
  * 统一的文件导入接口
  *
+ * @description
+ * 支持导入 Excel (.xlsx, .xls) 和 CSV 文件，自动解析文件内容并转换为 Univer 工作簿格式。
+ * 对于 Excel 文件，还会提取图片信息，可以在工作簿创建后通过返回的 `insertImages` 方法插入。
+ *
+ * @param file - 要导入的文件对象
+ * @param options - 导入选项
+ * @returns 导入结果，包含工作簿数据、图片列表和插入图片的方法
+ *
  * @example
  * ```ts
- * // 导入文件
+ * // 基础用法：导入文件并创建工作簿
  * const result = await importFile(file);
+ * const workbook = univerAPI.createWorkbook(result.workbookData);
  *
- * // 创建 sheet 并获取 sheetIdMapping
- * const { sheetIdMapping } = await createAndSaveSheets({ ... });
- *
- * // 插入图片
+ * // 如果有图片，插入到工作簿中
  * if (result.images.length > 0) {
- *   await result.insertImages(univerAPI, sheetIdMapping, {
- *     defaultType: ImageType.FLOATING,
+ *   const insertResult = await result.insertImages(univerAPI);
+ *   console.log(`图片插入完成: 成功 ${insertResult.success}, 失败 ${insertResult.failed}`);
+ * }
+ * ```
+ *
+ * @example
+ * ```ts
+ * // 高级用法：自定义图片插入选项
+ * const result = await importFile(file, { includeImages: true });
+ *
+ * if (result.images.length > 0) {
+ *   await result.insertImages(univerAPI, {
+ *     defaultType: ImageType.CELL,  // 使用单元格图片类型
+ *     continueOnError: true,         // 失败时继续处理其他图片
+ *     onProgress: (current, total) => {
+ *       console.log(`正在插入图片: ${current}/${total}`);
+ *     }
  *   });
  * }
  * ```
+ *
+ * @throws {Error} 当文件格式不支持时抛出错误
  */
 export async function importFile(
   file: File,
@@ -1944,16 +2001,15 @@ export async function importFile(
     images,
     insertImages: async (
       univerAPI: unknown,
-      sheetIdMapping: SheetIdMapping,
-      insertOptions: ImageInsertOptions = {},
+      insertOptions?: ImageInsertOptions,
     ) => {
       if (images.length === 0) {
         return { success: 0, failed: 0, errors: [] };
       }
-      return insertImagesAfterImport(univerAPI, images, sheetIdMapping, {
-        defaultType: insertOptions.defaultType ?? ImageType.FLOATING,
-        continueOnError: insertOptions.continueOnError ?? true,
-        onProgress: insertOptions.onProgress
+      return insertImagesAfterImport(univerAPI, images, {
+        defaultType: insertOptions?.defaultType ?? ImageType.FLOATING,
+        continueOnError: insertOptions?.continueOnError ?? true,
+        onProgress: insertOptions?.onProgress
           ? (current, total, _img) => insertOptions.onProgress!(current, total)
           : undefined,
       });
