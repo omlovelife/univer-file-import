@@ -71,10 +71,10 @@
   },
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/omlovelife/univer-file-import"
   },
   "bugs": {
-    "url": ""
+    "url": "https://github.com/omlovelife/univer-file-import/issues"
   },
-  "homepage": ""
+  "homepage": "https://github.com/omlovelife/univer-file-import#readme"
 }
