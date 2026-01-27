@@ -7,15 +7,24 @@
 // 主要导入功能
 export {
   importFile,
-  importCsv,
   ImageType,
+  // 添加功能到工作簿的函数
+  addConditionalFormatsToWorkbook,
+  addFiltersToWorkbook,
+  addSortsToWorkbook,
+  addChartsToWorkbook,
+  addPivotTablesToWorkbook,
+  addImagesToWorkbook,
+  // 类型导出
   type ImportedImage,
-  type ImportResult,
-  type SheetIdMapping,
+  type ImportedConditionalFormat,
+  type ImportedFilter,
+  type ImportedSort,
+  type ImportedChart,
+  type ImportedPivotTable,
   type ImageInsertOptions,
   type FileImportOptions,
   type FileImportResult,
-  type CsvImportOptions,
 } from './fileImport';
 
 // 工作簿辅助函数
