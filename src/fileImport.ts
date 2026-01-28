@@ -233,6 +233,8 @@ export interface ImportedPivotTable {
   sourceRange: {
     /** 数据源工作表名称 */
     sheetName: string;
+    /** 数据源工作表 ID（如果可用） */
+    sheetId?: string;
     /** 起始行（0-based） */
     startRow: number;
     /** 起始列（0-based） */
@@ -868,12 +870,16 @@ async function parsePivotTablesFromXlsx(
           }
         }
 
+        // 通过 sheetName 查找数据源 sheetId
+        const sourceSheetId = sheetNameToIdMap.get(cacheInfo.sourceSheetName);
+
         const pivotTable: ImportedPivotTable = {
           pivotTableId: `pivot-${nanoid()}`,
           sheetId,
           sheetName,
           sourceRange: {
             sheetName: cacheInfo.sourceSheetName,
+            sheetId: sourceSheetId, // 保存数据源 sheetId
             ...cacheInfo.sourceRange,
           },
           anchorCell: {
@@ -4348,6 +4354,78 @@ export async function addConditionalFormatsToWorkbook(
  * 添加单个条件格式规则
  * @internal
  */
+/**
+ * 将列字母转换为数字（1-based，用于范围裁剪）
+ * A=1, B=2, ..., Z=26, AA=27, ...
+ */
+function colToNum1Based(col: string): number {
+  let num = 0;
+  for (let i = 0; i < col.length; i++) {
+    num = num * 26 + (col.charCodeAt(i) - 64);
+  }
+  return num;
+}
+
+/**
+ * 解析 A1 格式的范围字符串并裁剪到工作表边界内
+ * @param rangeStr A1 格式的范围字符串（如 "A1:B10" 或 "K88:XFD90"）
+ * @param maxRows 工作表最大行数
+ * @param maxCols 工作表最大列数
+ * @returns 裁剪后的范围字符串，如果范围完全超出边界则返回 null
+ */
+function clipRangeToBounds(
+  rangeStr: string,
+  maxRows: number,
+  maxCols: number,
+): string | null {
+  if (!rangeStr || typeof rangeStr !== 'string') {
+    return null;
+  }
+
+  // 解析范围字符串：A1:B10 或 A1（单个单元格）
+  const rangeMatch = rangeStr.match(/^([A-Z]+)(\d+)(:([A-Z]+)(\d+))?$/i);
+  if (!rangeMatch) {
+    return null;
+  }
+
+  const startColStr = rangeMatch[1].toUpperCase();
+  let startRow = parseInt(rangeMatch[2], 10);
+  const endColStr = (rangeMatch[4] || startColStr).toUpperCase();
+  let endRow = parseInt(rangeMatch[5] || rangeMatch[2], 10);
+
+  // 转换为数字索引（1-based）
+  let startCol = colToNum1Based(startColStr);
+  let endCol = colToNum1Based(endColStr);
+
+  // 裁剪到边界内
+  startRow = Math.max(1, Math.min(startRow, maxRows));
+  endRow = Math.max(1, Math.min(endRow, maxRows));
+  startCol = Math.max(1, Math.min(startCol, maxCols));
+  endCol = Math.max(1, Math.min(endCol, maxCols));
+
+  // 如果裁剪后范围无效，返回 null
+  if (startRow > endRow || startCol > endCol) {
+    return null;
+  }
+
+  // 如果范围被裁剪，记录警告
+  const originalEndCol = colToNum1Based(endColStr);
+  if (originalEndCol > maxCols) {
+    console.warn(
+      `[fileImport] 条件格式范围 ${rangeStr} 的列超出边界（最大列: ${maxCols}），已裁剪到 ${numToCol(endCol)}${endRow}`,
+    );
+  }
+
+  // 返回裁剪后的范围字符串
+  if (startRow === endRow && startCol === endCol) {
+    // 单个单元格
+    return `${numToCol(startCol)}${startRow}`;
+  } else {
+    // 范围
+    return `${numToCol(startCol)}${startRow}:${numToCol(endCol)}${endRow}`;
+  }
+}
+
 async function addSingleConditionalFormat(
   fWorksheet: any,
   cfRule: ImportedConditionalFormat,
@@ -4355,9 +4433,37 @@ async function addSingleConditionalFormat(
   const { type, ranges, config } = cfRule;
   if (!ranges || ranges.length === 0) return;
 
-  // 获取第一个范围作为主范围
-  const primaryRange = ranges[0];
-  const fRange = fWorksheet.getRange(primaryRange);
+  // 获取工作表的最大行数和列数
+  const maxRows = fWorksheet.getMaxRows?.() || 1000;
+  const maxCols = fWorksheet.getMaxColumns?.() || 1000;
+
+  // 验证并裁剪所有范围到工作表边界内
+  const validRanges = ranges
+    .map((r: string) => {
+      const clippedRange = clipRangeToBounds(r, maxRows, maxCols);
+      if (!clippedRange) {
+        console.warn(`[fileImport] 条件格式范围 ${r} 超出工作表边界或无效，已跳过`);
+        return null;
+      }
+      return clippedRange;
+    })
+    .filter((r): r is string => r !== null);
+
+  if (validRanges.length === 0) {
+    console.warn(`[fileImport] 条件格式规则没有有效范围`);
+    return;
+  }
+
+  // 获取第一个有效范围作为主范围
+  const primaryRange = validRanges[0];
+  let fRange: any = null;
+  try {
+    fRange = fWorksheet.getRange(primaryRange);
+  } catch (error) {
+    console.warn(`[fileImport] 无法获取范围: ${primaryRange}`, error);
+    return;
+  }
+
   if (!fRange) {
     console.warn(`[fileImport] 无法获取范围: ${primaryRange}`);
     return;
@@ -4370,15 +4476,23 @@ async function addSingleConditionalFormat(
     return;
   }
 
-  // 设置范围 - 将所有范围转换为 IRange 格式
-  const rangeObjects = ranges
+  // 设置范围 - 将所有有效范围转换为 IRange 格式
+  const rangeObjects = validRanges
     .map((r: string) => {
-      const range = fWorksheet.getRange(r);
-      return range ? range.getRange() : null;
+      try {
+        const range = fWorksheet.getRange(r);
+        return range ? range.getRange() : null;
+      } catch (error) {
+        console.warn(`[fileImport] 获取范围失败: ${r}`, error);
+        return null;
+      }
     })
     .filter(Boolean);
 
-  if (rangeObjects.length === 0) return;
+  if (rangeObjects.length === 0) {
+    console.warn('[fileImport] 无法将范围转换为 IRange 格式');
+    return;
+  }
 
   // 根据类型设置规则并添加
   let ruleBuilder: any = null;
@@ -4441,7 +4555,9 @@ async function addSingleConditionalFormat(
 
   if (rule) {
     fWorksheet.addConditionalFormattingRule(rule);
-    console.log(`[fileImport] 已添加 ${type} 条件格式规则，范围: ${ranges.join(', ')}`);
+    console.log(
+      `[fileImport] 已添加 ${type} 条件格式规则，范围: ${validRanges.join(', ')}`,
+    );
   }
 }
 
@@ -4649,6 +4765,7 @@ export async function addChartsToWorkbook(
 export async function addImagesToWorkbook(
   univerAPI: any,
   images: ImportedImage[],
+  options: ImageInsertOptions = {},
 ): Promise<{
   success: number;
   failed: number;
@@ -4658,10 +4775,12 @@ export async function addImagesToWorkbook(
     return { success: 0, failed: 0, errors: [] };
   }
 
-  // 默认全部浮动图片，失败继续，无进度回调
   return insertImagesAfterImport(univerAPI, images, {
-    defaultType: ImageType.FLOATING,
-    continueOnError: true,
+    defaultType: options.defaultType ?? ImageType.FLOATING,
+    continueOnError: options.continueOnError ?? true,
+    onProgress: options.onProgress
+      ? (current, total, _img) => options.onProgress!(current, total)
+      : undefined,
   });
 }
 
@@ -4691,10 +4810,18 @@ export async function addPivotTablesToWorkbook(
     try {
       const { sheetId, sourceRange, anchorCell, fields, name } = pivotTable;
 
-      // 获取数据源工作表
-      const sourceSheet = fWorkbook.getSheetByName(sourceRange.sheetName);
+      // 获取数据源工作表 - 优先使用 sheetId，如果没有则使用 sheetName
+      let sourceSheet: any = null;
+      if (sourceRange.sheetId) {
+        sourceSheet = fWorkbook.getSheetBySheetId(sourceRange.sheetId);
+      }
+      if (!sourceSheet && sourceRange.sheetName) {
+        sourceSheet = fWorkbook.getSheetByName(sourceRange.sheetName);
+      }
       if (!sourceSheet) {
-        console.warn(`[fileImport] 未找到数据源工作表: ${sourceRange.sheetName}`);
+        console.warn(
+          `[fileImport] 未找到数据源工作表: sheetId=${sourceRange.sheetId}, sheetName=${sourceRange.sheetName}`,
+        );
         continue;
       }
       const sourceSheetId = sourceSheet.getSheetId();
@@ -4732,24 +4859,83 @@ export async function addPivotTablesToWorkbook(
         col: anchorCell.col,
       };
 
-      // 如果有占据区域信息，先清空该区域的单元格数据，避免 Univer 弹出确认对话框
+      // 清空目标区域的单元格数据，避免 Univer 弹出"目标区域中已有数据"的确认对话框
+      // 优先使用 occupiedRange，如果没有则根据 anchorCell 估算一个合理的清空范围
+      let clearStartRow = anchorCell.row;
+      let clearStartCol = anchorCell.col;
+      let clearEndRow = anchorCell.row + 50; // 默认清空 50 行
+      let clearEndCol = anchorCell.col + 20; // 默认清空 20 列
+
       const { occupiedRange } = pivotTable;
       if (occupiedRange) {
-        try {
-          const { startRow, startColumn, endRow, endColumn } = occupiedRange;
-          const numRows = endRow - startRow + 1;
-          const numCols = endColumn - startColumn + 1;
-          const clearRange = targetSheet.getRange(startRow, startColumn, numRows, numCols);
-          if (clearRange) {
-            // 使用 setValues 清空整个区域
-            const emptyValues = Array(numRows)
-              .fill(null)
-              .map(() => Array(numCols).fill(null));
-            clearRange.setValues(emptyValues);
+        // 使用 occupiedRange，但扩展一些范围以确保完全清空
+        clearStartRow = Math.max(0, occupiedRange.startRow - 2); // 向上扩展 2 行
+        clearStartCol = Math.max(0, occupiedRange.startColumn - 2); // 向左扩展 2 列
+        clearEndRow = occupiedRange.endRow + 10; // 向下扩展 10 行
+        clearEndCol = occupiedRange.endColumn + 5; // 向右扩展 5 列
+      }
+
+      try {
+        // 确保范围在工作表边界内
+        const maxRows = targetSheet.getMaxRows?.() || 1000;
+        const maxCols = targetSheet.getMaxColumns?.() || 1000;
+        clearStartRow = Math.max(0, Math.min(clearStartRow, maxRows - 1));
+        clearStartCol = Math.max(0, Math.min(clearStartCol, maxCols - 1));
+        clearEndRow = Math.max(clearStartRow, Math.min(clearEndRow, maxRows - 1));
+        clearEndCol = Math.max(clearStartCol, Math.min(clearEndCol, maxCols - 1));
+
+        const numRows = clearEndRow - clearStartRow + 1;
+        const numCols = clearEndCol - clearStartCol + 1;
+
+        // 使用 getRange 获取范围对象
+        const clearRange = targetSheet.getRange(clearStartRow, clearStartCol, numRows, numCols);
+        if (clearRange) {
+          // 方法1: 使用 setValues 清空值
+          const emptyValues = Array(numRows)
+            .fill(null)
+            .map(() => Array(numCols).fill(null));
+          clearRange.setValues(emptyValues);
+
+          // 方法2: 尝试使用 clearContent 或类似方法清空单元格（如果 API 支持）
+          try {
+            // 尝试使用 clearContent 方法（如果存在）
+            if (clearRange.clearContent && typeof clearRange.clearContent === 'function') {
+              clearRange.clearContent();
+            } else if (clearRange.clear && typeof clearRange.clear === 'function') {
+              clearRange.clear();
+            } else {
+              // 如果 API 不支持批量清空，逐个清空单元格
+              for (let r = clearStartRow; r <= clearEndRow; r++) {
+                for (let c = clearStartCol; c <= clearEndCol; c++) {
+                  try {
+                    const cell = targetSheet.getRange(r, c, 1, 1);
+                    if (cell) {
+                      // 清空单元格值
+                      cell.setValue(null);
+                      // 如果支持清空格式，也清空格式
+                      if (cell.clearFormat && typeof cell.clearFormat === 'function') {
+                        cell.clearFormat();
+                      } else if (cell.clear && typeof cell.clear === 'function') {
+                        cell.clear();
+                      }
+                    }
+                  } catch (cellError) {
+                    // 单个单元格清空失败不影响整体流程
+                  }
+                }
+              }
+            }
+          } catch (cellClearError) {
+            // 清空格式失败不影响整体流程
+            console.warn('[fileImport] 清空单元格格式失败:', cellClearError);
           }
-        } catch (clearError) {
-          // 清空失败不影响后续操作
         }
+      } catch (clearError) {
+        console.warn(
+          `[fileImport] 清空透视表目标区域失败: ${clearError.message}`,
+          { clearStartRow, clearStartCol, clearEndRow, clearEndCol },
+        );
+        // 清空失败不影响后续操作，但可能会弹出确认对话框
       }
 
       // 获取 PositionTypeEnum
