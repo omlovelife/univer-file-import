@@ -1,5 +1,25 @@
 # 更新日志
 
+## [1.2.3] - 2026-01-30
+
+### 变更
+
+- 图表导入增强：补充支持堆叠/百分比堆叠条形图、堆叠/百分比堆叠面积图等类型识别
+- 公式兼容性：导入时确保公式以 `=` 开头（符合 Univer 公式要求）
+
+
+## [1.2.0] - 2026-01-27
+
+### 变更
+
+- 新增：图表、筛选器、排序、透视表导入支持
+- 新增：addConditionalFormatsToWorkbook、addFiltersToWorkbook、addSortsToWorkbook、addChartsToWorkbook、addPivotTablesToWorkbook、addImagesToWorkbook 等 API
+- 新增：返回值支持 conditionalFormats、filters、sorts、charts、pivotTables 等结构
+- 优化：README 全面美化，文档结构更清晰
+- 变更：addImagesToWorkbook 仅保留 univerAPI 和 images 两个参数，去除 options
+- 移除：importCsv 不再导出，统一用 importFile
+
+
 ## [1.0.0] - 2026-01-26
 
 ### 新增
@@ -16,13 +36,3 @@
 - 图片导入支持（浮动图片和单元格图片）
 - 工作簿辅助函数
 
-## [1.2.0] - 2026-01-27
-
-### 变更
-
-- 新增：图表、筛选器、排序、透视表导入支持
-- 新增：addConditionalFormatsToWorkbook、addFiltersToWorkbook、addSortsToWorkbook、addChartsToWorkbook、addPivotTablesToWorkbook、addImagesToWorkbook 等 API
-- 新增：返回值支持 conditionalFormats、filters、sorts、charts、pivotTables 等结构
-- 优化：README 全面美化，文档结构更清晰
-- 变更：addImagesToWorkbook 仅保留 univerAPI 和 images 两个参数，去除 options
-- 移除：importCsv 不再导出，统一用 importFile

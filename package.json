@@ -1,6 +1,6 @@
 {
   "name": "univer-file-import",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Excel/CSV 文件导入工具，用于将 Excel 和 CSV 文件转换为 Univer 工作簿数据格式",
   "keywords": [
     "univer",
@@ -32,7 +32,8 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "build": "tsup",

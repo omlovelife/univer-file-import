@@ -2,7 +2,7 @@
 // @ts-nocheck
 
 /**
- * Excel/CSV 文件导入工具 oumingliang
+ * Excel/CSV 文件导入工具 oumingliang 20226.1.30
  *
  * 功能特性：
  * ✅ Excel 文件 (.xlsx, .xls)
@@ -190,6 +190,18 @@ export interface ImportedChart {
     | 'radar'
     | 'bubble'
     | 'combo'
+    | 'stackedBar'
+    | 'percentStackedBar'
+    | 'stackedArea'
+    | 'percentStackedArea'
+    | 'wordCloud'
+    | 'funnel'
+    | 'relationship'
+    | 'waterfall'
+    | 'treemap'
+    | 'sankey'
+    | 'heatmap'
+    | 'boxPlot'
     | 'unknown';
   /** 数据源范围（A1 格式，如 "A1:D6"） */
   dataRange?: string;
@@ -552,7 +564,28 @@ async function parseChartsFromXlsx(
           if (chartXml.includes('<c:barChart')) {
             // 检查是否是水平条形图
             const barDirMatch = chartXml.match(/<c:barDir[^>]*val="([^"]*)"/);
-            chartType = barDirMatch && barDirMatch[1] === 'bar' ? 'bar' : 'column';
+            const groupingMatch = chartXml.match(/<c:grouping[^>]*val="([^"]*)"/);
+            const grouping = groupingMatch ? groupingMatch[1] : 'clustered';
+
+            if (barDirMatch && barDirMatch[1] === 'bar') {
+              // 水平条形图
+              if (grouping === 'stacked') {
+                chartType = 'stackedBar';
+              } else if (grouping === 'percentStacked') {
+                chartType = 'percentStackedBar';
+              } else {
+                chartType = 'bar';
+              }
+            } else {
+              // 垂直柱状图
+              if (grouping === 'stacked') {
+                chartType = 'column'; // 堆叠柱状图，暂时使用 column，后续可能需要扩展
+              } else if (grouping === 'percentStacked') {
+                chartType = 'column'; // 百分比堆叠柱状图，暂时使用 column
+              } else {
+                chartType = 'column';
+              }
+            }
           } else if (chartXml.includes('<c:lineChart')) {
             chartType = 'line';
           } else if (chartXml.includes('<c:pieChart')) {
@@ -560,13 +593,32 @@ async function parseChartsFromXlsx(
           } else if (chartXml.includes('<c:doughnutChart')) {
             chartType = 'doughnut';
           } else if (chartXml.includes('<c:areaChart')) {
-            chartType = 'area';
+            // 检查是否是堆叠面积图
+            const groupingMatch = chartXml.match(/<c:grouping[^>]*val="([^"]*)"/);
+            const grouping = groupingMatch ? groupingMatch[1] : 'standard';
+
+            if (grouping === 'stacked') {
+              chartType = 'stackedArea';
+            } else if (grouping === 'percentStacked') {
+              chartType = 'percentStackedArea';
+            } else {
+              chartType = 'area';
+            }
           } else if (chartXml.includes('<c:scatterChart')) {
             chartType = 'scatter';
           } else if (chartXml.includes('<c:radarChart')) {
             chartType = 'radar';
           } else if (chartXml.includes('<c:bubbleChart')) {
             chartType = 'bubble';
+          } else if (chartXml.includes('<c:ofPieChart')) {
+            // 复合饼图（可能包含其他变体）
+            chartType = 'pie';
+          } else if (chartXml.includes('<c:surfaceChart')) {
+            // 曲面图，映射到散点图
+            chartType = 'scatter';
+          } else if (chartXml.includes('<c:stockChart')) {
+            // 股价图，映射到组合图
+            chartType = 'combo';
           }
 
           // 解析数据范围 - 需要获取完整的数据区域
@@ -1459,18 +1511,31 @@ async function importExcelWithImages(
         // 处理公式 - 保留公式和计算结果
         if (cell.type === ExcelJS.ValueType.Formula) {
           const formula = cell.formula;
+          let formulaText;
           if (formula) {
             // 处理共享公式
             if (typeof formula === 'object' && 'sharedFormula' in formula) {
-              cellValue.f = formula.sharedFormula;
+              formulaText = formula.sharedFormula;
             }
             // 处理数组公式
             else if (typeof formula === 'object' && 'result' in formula) {
-              cellValue.f = formula.formula || cell.formula;
+              formulaText = formula.formula || cell.formula;
             }
             // 普通公式
             else if (typeof formula === 'string') {
-              cellValue.f = formula;
+              formulaText = formula;
+            }
+            // 其他情况，尝试从 cell.formula 直接获取
+            else if (typeof cell.formula === 'string') {
+              formulaText = cell.formula;
+            }
+
+            if (formulaText) {
+              // 确保公式以 = 开头（Univer 要求）
+              if (!formulaText.startsWith('=')) {
+                formulaText = '=' + formulaText;
+              }
+              cellValue.f = formulaText;
             }
             // 公式单元格也需要设置值（计算结果）
             if (rawValue !== null && rawValue !== undefined) {
@@ -4373,11 +4438,7 @@ function colToNum1Based(col: string): number {
  * @param maxCols 工作表最大列数
  * @returns 裁剪后的范围字符串，如果范围完全超出边界则返回 null
  */
-function clipRangeToBounds(
-  rangeStr: string,
-  maxRows: number,
-  maxCols: number,
-): string | null {
+function clipRangeToBounds(rangeStr: string, maxRows: number, maxCols: number): string | null {
   if (!rangeStr || typeof rangeStr !== 'string') {
     return null;
   }
@@ -4412,7 +4473,9 @@ function clipRangeToBounds(
   const originalEndCol = colToNum1Based(endColStr);
   if (originalEndCol > maxCols) {
     console.warn(
-      `[fileImport] 条件格式范围 ${rangeStr} 的列超出边界（最大列: ${maxCols}），已裁剪到 ${numToCol(endCol)}${endRow}`,
+      `[fileImport] 条件格式范围 ${rangeStr} 的列超出边界（最大列: ${maxCols}），已裁剪到 ${numToCol(
+        endCol,
+      )}${endRow}`,
     );
   }
 
@@ -4555,9 +4618,7 @@ async function addSingleConditionalFormat(
 
   if (rule) {
     fWorksheet.addConditionalFormattingRule(rule);
-    console.log(
-      `[fileImport] 已添加 ${type} 条件格式规则，范围: ${validRanges.join(', ')}`,
-    );
+    console.log(`[fileImport] 已添加 ${type} 条件格式规则，范围: ${validRanges.join(', ')}`);
   }
 }
 
@@ -4651,6 +4712,20 @@ const EXCEL_TO_UNIVER_CHART_TYPE: Record<string, string> = {
   radar: 'Radar',
   bubble: 'Bubble',
   combo: 'Combination',
+  // 堆叠图表
+  stackedBar: 'StackedBar',
+  percentStackedBar: 'PercentStackedBar',
+  stackedArea: 'StackedArea',
+  percentStackedArea: 'PercentStackedArea',
+  // 特殊图表类型
+  wordCloud: 'WordCloud',
+  funnel: 'Funnel',
+  relationship: 'Relationship',
+  waterfall: 'Waterfall',
+  treemap: 'Treemap',
+  sankey: 'Sankey',
+  heatmap: 'Heatmap',
+  boxPlot: 'BoxPlot',
   unknown: 'Column', // 默认使用柱状图
 };
 
@@ -4931,10 +5006,12 @@ export async function addPivotTablesToWorkbook(
           }
         }
       } catch (clearError) {
-        console.warn(
-          `[fileImport] 清空透视表目标区域失败: ${clearError.message}`,
-          { clearStartRow, clearStartCol, clearEndRow, clearEndCol },
-        );
+        console.warn(`[fileImport] 清空透视表目标区域失败: ${clearError.message}`, {
+          clearStartRow,
+          clearStartCol,
+          clearEndRow,
+          clearEndCol,
+        });
         // 清空失败不影响后续操作，但可能会弹出确认对话框
       }
 
