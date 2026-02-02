@@ -26,7 +26,11 @@
  */
 
 import { LocaleType } from '@univerjs/core';
-import type { IWorkbookData, IWorksheetData, ICellData } from '@univerjs/presets';
+import type {
+  IWorkbookData,
+  IWorksheetData,
+  ICellData,
+} from '@univerjs/presets';
 import ExcelJS from 'exceljs';
 import { nanoid } from 'nanoid';
 import {
@@ -52,7 +56,6 @@ function getUniverVersion(): string {
     return '0.15.0';
   }
 }
-
 
 /**
  * 图片类型枚举
@@ -301,7 +304,9 @@ function parseExcelRange(range: string): {
   endRow: number;
 } | null {
   // 匹配格式: Sheet1!$A$1:$D$6 或 Sheet1!$A$1
-  const match = range.match(/^(.+?)!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/);
+  const match = range.match(
+    /^(.+?)!\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/
+  );
   if (!match) return null;
 
   const sheetName = match[1].replace(/^'|'$/g, ''); // 移除引号
@@ -387,7 +392,7 @@ function mergeChartDataRanges(ranges: string[]): string {
  */
 async function parseChartsFromXlsx(
   arrayBuffer: ArrayBuffer,
-  sheetNameToIdMap: Map<string, string>,
+  sheetNameToIdMap: Map<string, string>
 ): Promise<Record<string, ImportedChart[]>> {
   const charts: Record<string, ImportedChart[]> = {};
 
@@ -414,7 +419,9 @@ async function parseChartsFromXlsx(
 
     // 解析 sheet 名称和 rId 的映射
     const sheetRIdMap = new Map<string, string>(); // sheetName -> rId
-    const sheetMatches = workbookXml.matchAll(/<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]*)"/g);
+    const sheetMatches = workbookXml.matchAll(
+      /<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]*)"/g
+    );
     for (const match of sheetMatches) {
       sheetRIdMap.set(match[1], match[2]);
     }
@@ -422,7 +429,7 @@ async function parseChartsFromXlsx(
     // 解析 rId 和 sheet 文件路径的映射
     const rIdToPathMap = new Map<string, string>(); // rId -> sheetPath
     const relMatches = workbookRels.matchAll(
-      /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g,
+      /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g
     );
     for (const match of relMatches) {
       rIdToPathMap.set(match[1], match[2]);
@@ -445,7 +452,7 @@ async function parseChartsFromXlsx(
 
       // 查找 drawing 关系
       const drawingMatch = sheetRels.match(
-        /<Relationship[^>]*Type="[^"]*drawing"[^>]*Target="([^"]*)"/,
+        /<Relationship[^>]*Type="[^"]*drawing"[^>]*Target="([^"]*)"/
       );
       if (drawingMatch) {
         const drawingPath = drawingMatch[1].replace('../', '');
@@ -477,7 +484,9 @@ async function parseChartsFromXlsx(
       const drawingRelsFile = zip.file(`xl/${drawingRelsPath}`);
 
       if (!drawingRelsFile) {
-        console.log(`[fileImport] 未找到 drawing 关系文件: xl/${drawingRelsPath}`);
+        console.log(
+          `[fileImport] 未找到 drawing 关系文件: xl/${drawingRelsPath}`
+        );
         continue;
       }
 
@@ -486,7 +495,7 @@ async function parseChartsFromXlsx(
       // 解析图表 rId 到 chart 路径的映射
       const chartRIdMap = new Map<string, string>();
       const chartRelMatches = drawingRels.matchAll(
-        /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g,
+        /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g
       );
       for (const match of chartRelMatches) {
         if (match[2].includes('chart')) {
@@ -505,7 +514,9 @@ async function parseChartsFromXlsx(
         const anchorContent = anchorMatch[1] || anchorMatch[2];
 
         // 检查是否是图表（包含 graphicFrame 和 chart 引用）
-        const chartRefMatch = anchorContent.match(/<c:chart[^>]*r:id="([^"]*)"/);
+        const chartRefMatch = anchorContent.match(
+          /<c:chart[^>]*r:id="([^"]*)"/
+        );
         if (!chartRefMatch) continue;
 
         const chartRId = chartRefMatch[1];
@@ -514,30 +525,36 @@ async function parseChartsFromXlsx(
 
         // 解析位置信息
         const fromColMatch = anchorContent.match(
-          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?col>(\d+)<\/(?:xdr:)?col>/,
+          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?col>(\d+)<\/(?:xdr:)?col>/
         );
         const fromRowMatch = anchorContent.match(
-          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?row>(\d+)<\/(?:xdr:)?row>/,
+          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?row>(\d+)<\/(?:xdr:)?row>/
         );
         const fromColOffMatch = anchorContent.match(
-          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?colOff>(\d+)<\/(?:xdr:)?colOff>/,
+          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?colOff>(\d+)<\/(?:xdr:)?colOff>/
         );
         const fromRowOffMatch = anchorContent.match(
-          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?rowOff>(\d+)<\/(?:xdr:)?rowOff>/,
+          /<(?:xdr:)?from>[\s\S]*?<(?:xdr:)?rowOff>(\d+)<\/(?:xdr:)?rowOff>/
         );
 
         const position = {
           column: fromColMatch ? parseInt(fromColMatch[1], 10) : 0,
           row: fromRowMatch ? parseInt(fromRowMatch[1], 10) : 0,
-          columnOffset: fromColOffMatch ? Math.round(parseInt(fromColOffMatch[1], 10) / 9525) : 0, // EMUs to pixels
-          rowOffset: fromRowOffMatch ? Math.round(parseInt(fromRowOffMatch[1], 10) / 9525) : 0,
+          columnOffset: fromColOffMatch
+            ? Math.round(parseInt(fromColOffMatch[1], 10) / 9525)
+            : 0, // EMUs to pixels
+          rowOffset: fromRowOffMatch
+            ? Math.round(parseInt(fromRowOffMatch[1], 10) / 9525)
+            : 0,
         };
 
         // 解析尺寸信息（从 to 锚点计算或使用默认值）
         let width = 600;
         let height = 400;
 
-        const extMatch = anchorContent.match(/<(?:xdr:)?ext[^>]*cx="(\d+)"[^>]*cy="(\d+)"/);
+        const extMatch = anchorContent.match(
+          /<(?:xdr:)?ext[^>]*cx="(\d+)"[^>]*cy="(\d+)"/
+        );
         if (extMatch) {
           width = Math.round(parseInt(extMatch[1], 10) / 9525); // EMUs to pixels
           height = Math.round(parseInt(extMatch[2], 10) / 9525);
@@ -555,7 +572,10 @@ async function parseChartsFromXlsx(
 
           // 检查是否是透视图（pivotSource 元素表示这是透视图）
           // 透视图应该跳过，让透视表插件处理
-          if (chartXml.includes('<c:pivotSource') || chartXml.includes('<c15:pivotSource')) {
+          if (
+            chartXml.includes('<c:pivotSource') ||
+            chartXml.includes('<c15:pivotSource')
+          ) {
             isPivotChart = true;
             continue;
           }
@@ -564,7 +584,9 @@ async function parseChartsFromXlsx(
           if (chartXml.includes('<c:barChart')) {
             // 检查是否是水平条形图
             const barDirMatch = chartXml.match(/<c:barDir[^>]*val="([^"]*)"/);
-            const groupingMatch = chartXml.match(/<c:grouping[^>]*val="([^"]*)"/);
+            const groupingMatch = chartXml.match(
+              /<c:grouping[^>]*val="([^"]*)"/
+            );
             const grouping = groupingMatch ? groupingMatch[1] : 'clustered';
 
             if (barDirMatch && barDirMatch[1] === 'bar') {
@@ -594,7 +616,9 @@ async function parseChartsFromXlsx(
             chartType = 'doughnut';
           } else if (chartXml.includes('<c:areaChart')) {
             // 检查是否是堆叠面积图
-            const groupingMatch = chartXml.match(/<c:grouping[^>]*val="([^"]*)"/);
+            const groupingMatch = chartXml.match(
+              /<c:grouping[^>]*val="([^"]*)"/
+            );
             const grouping = groupingMatch ? groupingMatch[1] : 'standard';
 
             if (grouping === 'stacked') {
@@ -642,7 +666,9 @@ async function parseChartsFromXlsx(
           }
 
           // 解析标题
-          const titleMatch = chartXml.match(/<c:title>[\s\S]*?<c:t>([^<]+)<\/c:t>/);
+          const titleMatch = chartXml.match(
+            /<c:title>[\s\S]*?<c:t>([^<]+)<\/c:t>/
+          );
           if (titleMatch) {
             title = titleMatch[1];
           }
@@ -682,7 +708,7 @@ async function parseChartsFromXlsx(
  */
 async function parsePivotTablesFromXlsx(
   arrayBuffer: ArrayBuffer,
-  sheetNameToIdMap: Map<string, string>,
+  sheetNameToIdMap: Map<string, string>
 ): Promise<ImportedPivotTable[]> {
   const pivotTables: ImportedPivotTable[] = [];
 
@@ -704,7 +730,9 @@ async function parsePivotTablesFromXlsx(
 
     // 解析 sheet 名称和 rId 的映射
     const sheetRIdMap = new Map<string, string>(); // sheetName -> rId
-    const sheetMatches = workbookXml.matchAll(/<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]*)"/g);
+    const sheetMatches = workbookXml.matchAll(
+      /<sheet[^>]*name="([^"]*)"[^>]*r:id="([^"]*)"/g
+    );
     for (const match of sheetMatches) {
       sheetRIdMap.set(match[1], match[2]);
     }
@@ -712,7 +740,7 @@ async function parsePivotTablesFromXlsx(
     // 解析 rId 和 sheet 文件路径的映射
     const rIdToPathMap = new Map<string, string>(); // rId -> sheetPath
     const relMatches = workbookRels.matchAll(
-      /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g,
+      /<Relationship[^>]*Id="([^"]*)"[^>]*Target="([^"]*)"/g
     );
     for (const match of relMatches) {
       rIdToPathMap.set(match[1], match[2]);
@@ -722,7 +750,7 @@ async function parsePivotTablesFromXlsx(
     // 格式: <pivotCache cacheId="6" r:id="rId8"/>
     const cacheIdToRIdMap = new Map<string, string>(); // cacheId -> rId
     const pivotCacheMatches = workbookXml.matchAll(
-      /<pivotCache[^>]*cacheId="(\d+)"[^>]*r:id="([^"]*)"|<pivotCache[^>]*r:id="([^"]*)"[^>]*cacheId="(\d+)"/g,
+      /<pivotCache[^>]*cacheId="(\d+)"[^>]*r:id="([^"]*)"|<pivotCache[^>]*r:id="([^"]*)"[^>]*cacheId="(\d+)"/g
     );
     for (const match of pivotCacheMatches) {
       const cacheId = match[1] || match[4];
@@ -737,7 +765,12 @@ async function parsePivotTablesFromXlsx(
       string,
       {
         sourceSheetName: string;
-        sourceRange: { startRow: number; startColumn: number; endRow: number; endColumn: number };
+        sourceRange: {
+          startRow: number;
+          startColumn: number;
+          endRow: number;
+          endColumn: number;
+        };
       }
     >();
 
@@ -745,12 +778,16 @@ async function parsePivotTablesFromXlsx(
     for (const [cacheId, rId] of cacheIdToRIdMap) {
       const cachePath = rIdToPathMap.get(rId);
       if (!cachePath) {
-        console.log(`[fileImport] 未找到 cacheId=${cacheId} 对应的缓存文件路径, rId=${rId}`);
+        console.log(
+          `[fileImport] 未找到 cacheId=${cacheId} 对应的缓存文件路径, rId=${rId}`
+        );
         continue;
       }
 
       // 路径可能是相对路径，需要处理
-      const fullCachePath = cachePath.startsWith('/') ? `xl${cachePath}` : `xl/${cachePath}`;
+      const fullCachePath = cachePath.startsWith('/')
+        ? `xl${cachePath}`
+        : `xl/${cachePath}`;
       const cacheFile = zip.file(fullCachePath);
       if (!cacheFile) {
         console.log(`[fileImport] 未找到缓存文件: ${fullCachePath}`);
@@ -761,7 +798,7 @@ async function parsePivotTablesFromXlsx(
 
       // 解析数据源范围，例如: <cacheSource type="worksheet"><worksheetSource ref="A1:D6" sheet="Sheet1"/></cacheSource>
       const worksheetSourceMatch = cacheXml.match(
-        /<worksheetSource[^>]*ref="([^"]*)"[^>]*sheet="([^"]*)"|<worksheetSource[^>]*sheet="([^"]*)"[^>]*ref="([^"]*)"/,
+        /<worksheetSource[^>]*ref="([^"]*)"[^>]*sheet="([^"]*)"|<worksheetSource[^>]*sheet="([^"]*)"[^>]*ref="([^"]*)"/
       );
 
       if (worksheetSourceMatch) {
@@ -806,7 +843,7 @@ async function parsePivotTablesFromXlsx(
       // 查找透视表关系
       const pivotTableRels = [
         ...sheetRels.matchAll(
-          /<Relationship[^>]*Id="([^"]*)"[^>]*Type="[^"]*pivotTable"[^>]*Target="([^"]*)"/g,
+          /<Relationship[^>]*Id="([^"]*)"[^>]*Type="[^"]*pivotTable"[^>]*Target="([^"]*)"/g
         ),
       ];
 
@@ -819,7 +856,9 @@ async function parsePivotTablesFromXlsx(
         const pivotTableXml = await pivotTableFile.async('string');
 
         // 解析透视表位置，例如: <location ref="A8:C12" firstHeaderRow="1" firstDataRow="2" firstDataCol="1"/>
-        const locationMatch = pivotTableXml.match(/<location[^>]*ref="([^"]*)"/);
+        const locationMatch = pivotTableXml.match(
+          /<location[^>]*ref="([^"]*)"/
+        );
         let anchorRow = 0;
         let anchorCol = 0;
         let occupiedRange: ImportedPivotTable['occupiedRange'] = undefined;
@@ -848,17 +887,23 @@ async function parsePivotTablesFromXlsx(
         }
 
         // 解析透视表名称
-        const nameMatch = pivotTableXml.match(/<pivotTableDefinition[^>]*name="([^"]*)"/);
+        const nameMatch = pivotTableXml.match(
+          /<pivotTableDefinition[^>]*name="([^"]*)"/
+        );
         const name = nameMatch ? nameMatch[1] : undefined;
 
         // 解析 cacheId
-        const cacheIdMatch = pivotTableXml.match(/<pivotTableDefinition[^>]*cacheId="(\d+)"/);
+        const cacheIdMatch = pivotTableXml.match(
+          /<pivotTableDefinition[^>]*cacheId="(\d+)"/
+        );
         const cacheId = cacheIdMatch ? cacheIdMatch[1] : '1';
 
         // 获取数据源信息
         const cacheInfo = pivotCacheMap.get(cacheId);
         if (!cacheInfo) {
-          console.log(`[fileImport] 未找到透视表的数据源缓存: cacheId=${cacheId}`);
+          console.log(
+            `[fileImport] 未找到透视表的数据源缓存: cacheId=${cacheId}`
+          );
           continue;
         }
 
@@ -869,9 +914,13 @@ async function parsePivotTablesFromXlsx(
         const filterFields: number[] = [];
 
         // 解析行字段: <rowFields count="1"><field x="0"/></rowFields>
-        const rowFieldsMatch = pivotTableXml.match(/<rowFields[^>]*>([\s\S]*?)<\/rowFields>/);
+        const rowFieldsMatch = pivotTableXml.match(
+          /<rowFields[^>]*>([\s\S]*?)<\/rowFields>/
+        );
         if (rowFieldsMatch) {
-          const fieldMatches = rowFieldsMatch[1].matchAll(/<field[^>]*x="(-?\d+)"/g);
+          const fieldMatches = rowFieldsMatch[1].matchAll(
+            /<field[^>]*x="(-?\d+)"/g
+          );
           for (const match of fieldMatches) {
             const fieldIndex = parseInt(match[1], 10);
             if (fieldIndex >= 0) {
@@ -881,9 +930,13 @@ async function parsePivotTablesFromXlsx(
         }
 
         // 解析列字段: <colFields count="1"><field x="1"/></colFields>
-        const colFieldsMatch = pivotTableXml.match(/<colFields[^>]*>([\s\S]*?)<\/colFields>/);
+        const colFieldsMatch = pivotTableXml.match(
+          /<colFields[^>]*>([\s\S]*?)<\/colFields>/
+        );
         if (colFieldsMatch) {
-          const fieldMatches = colFieldsMatch[1].matchAll(/<field[^>]*x="(-?\d+)"/g);
+          const fieldMatches = colFieldsMatch[1].matchAll(
+            /<field[^>]*x="(-?\d+)"/g
+          );
           for (const match of fieldMatches) {
             const fieldIndex = parseInt(match[1], 10);
             if (fieldIndex >= 0) {
@@ -893,18 +946,26 @@ async function parsePivotTablesFromXlsx(
         }
 
         // 解析值字段: <dataFields count="1"><dataField name="Sum of Sales" fld="2"/></dataFields>
-        const dataFieldsMatch = pivotTableXml.match(/<dataFields[^>]*>([\s\S]*?)<\/dataFields>/);
+        const dataFieldsMatch = pivotTableXml.match(
+          /<dataFields[^>]*>([\s\S]*?)<\/dataFields>/
+        );
         if (dataFieldsMatch) {
-          const fieldMatches = dataFieldsMatch[1].matchAll(/<dataField[^>]*fld="(\d+)"/g);
+          const fieldMatches = dataFieldsMatch[1].matchAll(
+            /<dataField[^>]*fld="(\d+)"/g
+          );
           for (const match of fieldMatches) {
             valueFields.push(parseInt(match[1], 10));
           }
         }
 
         // 解析筛选字段: <pageFields count="1"><pageField fld="3"/></pageFields>
-        const pageFieldsMatch = pivotTableXml.match(/<pageFields[^>]*>([\s\S]*?)<\/pageFields>/);
+        const pageFieldsMatch = pivotTableXml.match(
+          /<pageFields[^>]*>([\s\S]*?)<\/pageFields>/
+        );
         if (pageFieldsMatch) {
-          const fieldMatches = pageFieldsMatch[1].matchAll(/<pageField[^>]*fld="(\d+)"/g);
+          const fieldMatches = pageFieldsMatch[1].matchAll(
+            /<pageField[^>]*fld="(\d+)"/g
+          );
           for (const match of fieldMatches) {
             filterFields.push(parseInt(match[1], 10));
           }
@@ -918,7 +979,10 @@ async function parsePivotTablesFromXlsx(
           anchorRow = Math.max(0, anchorRow - filterRowCount);
           // 同时调整 occupiedRange 的起始行
           if (occupiedRange) {
-            occupiedRange.startRow = Math.max(0, occupiedRange.startRow - filterRowCount);
+            occupiedRange.startRow = Math.max(
+              0,
+              occupiedRange.startRow - filterRowCount
+            );
           }
         }
 
@@ -965,7 +1029,7 @@ async function parsePivotTablesFromXlsx(
  */
 async function parseSortsFromXlsx(
   arrayBuffer: ArrayBuffer,
-  sheetIndexToIdMap: string[],
+  sheetIndexToIdMap: string[]
 ): Promise<Record<string, ImportedSort>> {
   const sorts: Record<string, ImportedSort> = {};
 
@@ -988,7 +1052,7 @@ async function parseSortsFromXlsx(
 
       // 解析 <sortState ref="A1:D10">...</sortState>
       const sortStateMatch = sheetXml.match(
-        /<sortState[^>]*ref="([^"]+)"[^>]*>([\s\S]*?)<\/sortState>/,
+        /<sortState[^>]*ref="([^"]+)"[^>]*>([\s\S]*?)<\/sortState>/
       );
       if (!sortStateMatch) continue;
 
@@ -1132,7 +1196,9 @@ function isDateFormat(numFmt: string): boolean {
 
   // 检查是否包含日期关键词
   const lowerFmt = numFmt.toLowerCase();
-  const hasDateKeyword = dateKeywords.some((keyword) => lowerFmt.includes(keyword.toLowerCase()));
+  const hasDateKeyword = dateKeywords.some((keyword) =>
+    lowerFmt.includes(keyword.toLowerCase())
+  );
 
   // 常见的内置日期格式编号（Excel使用）
   const dateFormatCodes = [
@@ -1176,7 +1242,7 @@ function isDateFormat(numFmt: string): boolean {
 async function handleFileImport(
   file: File,
   type: 'xlsx' | 'xls' | 'csv',
-  includeImages: boolean = true,
+  includeImages: boolean = true
 ): Promise<ImportResult> {
   try {
     let result: ImportResult;
@@ -1212,7 +1278,7 @@ async function handleFileImport(
  */
 async function importExcelWithImages(
   file: File,
-  includeImages: boolean = true,
+  includeImages: boolean = true
 ): Promise<ImportResult> {
   const fileSize = file.size;
   const fileName = file.name;
@@ -1221,7 +1287,9 @@ async function importExcelWithImages(
   // 大文件警告
   if (fileSize > 10 * 1024 * 1024) {
     console.warn(
-      `⚠️ 正在导入大文件 (${(fileSize / 1024 / 1024).toFixed(1)}MB)，可能需要较长时间...`,
+      `⚠️ 正在导入大文件 (${(fileSize / 1024 / 1024).toFixed(
+        1
+      )}MB)，可能需要较长时间...`
     );
   }
 
@@ -1238,7 +1306,9 @@ async function importExcelWithImages(
     }
   } catch (error) {
     console.error('Excel 文件加载失败:', error);
-    throw new Error(`无法加载 Excel 文件: ${error.message}. 如果是 .xls 格式，请先转换为 .xlsx`);
+    throw new Error(
+      `无法加载 Excel 文件: ${error.message}. 如果是 .xls 格式，请先转换为 .xlsx`
+    );
   }
 
   const univerWorkbook: IWorkbookData = {
@@ -1299,7 +1369,9 @@ async function importExcelWithImages(
     let maxCol = 0;
 
     // 工作表名称处理 - 处理特殊字符
-    const sheetName = escapeSheetName(worksheet.name || `Sheet${sheetIndex + 1}`);
+    const sheetName = escapeSheetName(
+      worksheet.name || `Sheet${sheetIndex + 1}`
+    );
     // 记录 sheetName 到 sheetKey 的映射（用于图表解析）
     sheetNameToIdMap.set(worksheet.name || `Sheet${sheetIndex + 1}`, sheetKey);
     // 记录 sheetIndex 到 sheetKey 的映射（用于排序解析）
@@ -1382,7 +1454,8 @@ async function importExcelWithImages(
 
               // 备用方案：从 worksheet 的 media 获取
               if (!foundImage) {
-                const wsMedia = (worksheet as any)._media || (worksheet as any).media || [];
+                const wsMedia =
+                  (worksheet as any)._media || (worksheet as any).media || [];
                 for (const media of wsMedia) {
                   if (media && media.type === 'image' && media.buffer) {
                     foundImage = media;
@@ -1438,14 +1511,17 @@ async function importExcelWithImages(
         // 最终安全检查：确保值不是 NaN，如果是则使用原始数据
         if (rawValue !== null && rawValue !== undefined && rawValue !== '') {
           // 如果是数字，检查是否为 NaN
-          if (typeof rawValue === 'number' && (isNaN(rawValue) || !isFinite(rawValue))) {
+          if (
+            typeof rawValue === 'number' &&
+            (isNaN(rawValue) || !isFinite(rawValue))
+          ) {
             console.warn(
               '检测到 NaN 数字值，单元格:',
               cell.address,
               '原始值:',
               cell.value,
               '类型:',
-              cell.type,
+              cell.type
             );
             // 使用原始数据而不是空字符串
             rawValue = getOriginalCellValue(cell);
@@ -1461,7 +1537,7 @@ async function importExcelWithImages(
               '原始值:',
               cell.value,
               '类型:',
-              cell.type,
+              cell.type
             );
             // 使用原始数据而不是空字符串
             rawValue = getOriginalCellValue(cell);
@@ -1470,8 +1546,10 @@ async function importExcelWithImages(
 
         // 判断单元格是否真正有内容
         // 注意：数值 0 是有效值，不应被过滤
-        const hasValue = rawValue !== null && rawValue !== undefined && rawValue !== '';
-        const hasFormula = cell.type === ExcelJS.ValueType.Formula && cell.formula;
+        const hasValue =
+          rawValue !== null && rawValue !== undefined && rawValue !== '';
+        const hasFormula =
+          cell.type === ExcelJS.ValueType.Formula && cell.formula;
 
         // 检查是否有实际的样式设置（排除默认空对象和空样式）
         const hasActualStyle =
@@ -1634,7 +1712,8 @@ async function importExcelWithImages(
               if (!cellData[startRow]) cellData[startRow] = {};
               if (!cellData[startRow][col]) cellData[startRow][col] = {};
               if (!cellData[startRow][col].s) cellData[startRow][col].s = {};
-              if (!cellData[startRow][col].s.bd) cellData[startRow][col].s.bd = {};
+              if (!cellData[startRow][col].s.bd)
+                cellData[startRow][col].s.bd = {};
               cellData[startRow][col].s.bd.t = convertSingleBorder(border.top);
             }
           }
@@ -1655,9 +1734,13 @@ async function importExcelWithImages(
             for (let row = startRow; row <= endRow; row++) {
               if (!cellData[row]) cellData[row] = {};
               if (!cellData[row][startColumn]) cellData[row][startColumn] = {};
-              if (!cellData[row][startColumn].s) cellData[row][startColumn].s = {};
-              if (!cellData[row][startColumn].s.bd) cellData[row][startColumn].s.bd = {};
-              cellData[row][startColumn].s.bd.l = convertSingleBorder(border.left);
+              if (!cellData[row][startColumn].s)
+                cellData[row][startColumn].s = {};
+              if (!cellData[row][startColumn].s.bd)
+                cellData[row][startColumn].s.bd = {};
+              cellData[row][startColumn].s.bd.l = convertSingleBorder(
+                border.left
+              );
             }
           }
 
@@ -1667,8 +1750,11 @@ async function importExcelWithImages(
               if (!cellData[row]) cellData[row] = {};
               if (!cellData[row][endColumn]) cellData[row][endColumn] = {};
               if (!cellData[row][endColumn].s) cellData[row][endColumn].s = {};
-              if (!cellData[row][endColumn].s.bd) cellData[row][endColumn].s.bd = {};
-              cellData[row][endColumn].s.bd.r = convertSingleBorder(border.right);
+              if (!cellData[row][endColumn].s.bd)
+                cellData[row][endColumn].s.bd = {};
+              cellData[row][endColumn].s.bd.r = convertSingleBorder(
+                border.right
+              );
             }
           }
         }
@@ -1678,19 +1764,28 @@ async function importExcelWithImages(
     // 处理条件格式（包括数据条、色阶、图标集等）
     // ExcelJS 通过 worksheet.conditionalFormattings 存储条件格式
     // 条件格式需要通过 Facade API 添加，返回给调用方处理
-    if (worksheet.conditionalFormattings && Array.isArray(worksheet.conditionalFormattings)) {
+    if (
+      worksheet.conditionalFormattings &&
+      Array.isArray(worksheet.conditionalFormattings)
+    ) {
       try {
         const sheetCfRules: ImportedConditionalFormat[] = [];
         worksheet.conditionalFormattings.forEach((cf: any) => {
           if (!cf || !cf.ref) return;
 
           // 保留原始范围引用（A1 格式，如 "A1:B10"）
-          const rangeRefs = cf.ref.split(/[,\s]+/).filter((r: string) => r.trim());
+          const rangeRefs = cf.ref
+            .split(/[,\s]+/)
+            .filter((r: string) => r.trim());
 
           // 处理每条规则
           if (cf.rules && Array.isArray(cf.rules)) {
             cf.rules.forEach((rule: any, ruleIndex: number) => {
-              const cfRule = convertConditionalFormatRuleForFacade(rule, rangeRefs, ruleIndex);
+              const cfRule = convertConditionalFormatRuleForFacade(
+                rule,
+                rangeRefs,
+                ruleIndex
+              );
               if (cfRule) {
                 sheetCfRules.push(cfRule);
               }
@@ -1712,7 +1807,9 @@ async function importExcelWithImages(
         const filterRange = parseAutoFilter(worksheet.autoFilter);
         if (filterRange) {
           allFilters[sheetKey] = { range: filterRange };
-          console.log(`[fileImport] 解析筛选器: sheet=${sheetKey}, range=${filterRange}`);
+          console.log(
+            `[fileImport] 解析筛选器: sheet=${sheetKey}, range=${filterRange}`
+          );
         }
       } catch (error) {
         console.warn('处理筛选器时出错:', error);
@@ -1746,7 +1843,11 @@ async function importExcelWithImages(
 
     // 处理冻结窗格（Freeze Panes）
     // ExcelJS 通过 worksheet.views 存储视图信息，包括冻结
-    if (worksheet.views && Array.isArray(worksheet.views) && worksheet.views.length > 0) {
+    if (
+      worksheet.views &&
+      Array.isArray(worksheet.views) &&
+      worksheet.views.length > 0
+    ) {
       const view = worksheet.views[0]; // 通常只有一个视图
       if (view) {
         // state 为 'frozen' 表示有冻结
@@ -1764,7 +1865,11 @@ async function importExcelWithImages(
     }
 
     // 处理图片 - 构建符合 Univer 格式的图片数据（仅当 includeImages 为 true 时）
-    if (includeImages && worksheet.getImages && typeof worksheet.getImages === 'function') {
+    if (
+      includeImages &&
+      worksheet.getImages &&
+      typeof worksheet.getImages === 'function'
+    ) {
       try {
         const worksheetImages = worksheet.getImages();
 
@@ -1812,19 +1917,31 @@ async function importExcelWithImages(
               if (range) {
                 // 处理不同的范围格式
                 if (range.tl) {
-                  startColumn = Math.floor(range.tl.col ?? range.tl.nativeCol ?? 0);
-                  startRow = Math.floor(range.tl.row ?? range.tl.nativeRow ?? 0);
+                  startColumn = Math.floor(
+                    range.tl.col ?? range.tl.nativeCol ?? 0
+                  );
+                  startRow = Math.floor(
+                    range.tl.row ?? range.tl.nativeRow ?? 0
+                  );
                   // 计算偏移量（小数部分）
-                  const colDecimal = (range.tl.col ?? range.tl.nativeCol ?? 0) % 1;
-                  const rowDecimal = (range.tl.row ?? range.tl.nativeRow ?? 0) % 1;
+                  const colDecimal =
+                    (range.tl.col ?? range.tl.nativeCol ?? 0) % 1;
+                  const rowDecimal =
+                    (range.tl.row ?? range.tl.nativeRow ?? 0) % 1;
                   startColumnOffset = colDecimal * DEFAULT_COLUMN_WIDTH;
                   startRowOffset = rowDecimal * DEFAULT_ROW_HEIGHT;
                 }
                 if (range.br) {
-                  endColumn = Math.floor(range.br.col ?? range.br.nativeCol ?? startColumn + 1);
-                  endRow = Math.floor(range.br.row ?? range.br.nativeRow ?? startRow + 1);
-                  const colDecimal = (range.br.col ?? range.br.nativeCol ?? 0) % 1;
-                  const rowDecimal = (range.br.row ?? range.br.nativeRow ?? 0) % 1;
+                  endColumn = Math.floor(
+                    range.br.col ?? range.br.nativeCol ?? startColumn + 1
+                  );
+                  endRow = Math.floor(
+                    range.br.row ?? range.br.nativeRow ?? startRow + 1
+                  );
+                  const colDecimal =
+                    (range.br.col ?? range.br.nativeCol ?? 0) % 1;
+                  const rowDecimal =
+                    (range.br.row ?? range.br.nativeRow ?? 0) % 1;
                   endColumnOffset = colDecimal * DEFAULT_COLUMN_WIDTH;
                   endRowOffset = rowDecimal * DEFAULT_ROW_HEIGHT;
                 } else {
@@ -1841,7 +1958,9 @@ async function importExcelWithImages(
                   endColumnOffset -
                   startColumnOffset;
                 imageHeight =
-                  (endRow - startRow) * DEFAULT_ROW_HEIGHT + endRowOffset - startRowOffset;
+                  (endRow - startRow) * DEFAULT_ROW_HEIGHT +
+                  endRowOffset -
+                  startRowOffset;
               }
 
               // 确保最小尺寸
@@ -1936,50 +2055,60 @@ async function importExcelWithImages(
     const worksheetCharts: ImportedChart[] = [];
 
     // 方法1: 检查 drawings 数组
-    if ((worksheet as any).drawings && Array.isArray((worksheet as any).drawings)) {
+    if (
+      (worksheet as any).drawings &&
+      Array.isArray((worksheet as any).drawings)
+    ) {
       try {
         console.log(
           `[fileImport] Sheet "${sheetName}" 发现 ${
             (worksheet as any).drawings.length
-          } 个 drawings`,
+          } 个 drawings`
         );
-        (worksheet as any).drawings.forEach((drawing: any, drawingIndex: number) => {
-          console.log(`[fileImport] Drawing ${drawingIndex}:`, {
-            type: drawing.type,
-            chartType: drawing.chartType,
-            keys: Object.keys(drawing),
-          });
-          if (drawing.type === 'chart' || drawing.chartType) {
-            const chart: ImportedChart = {
-              chartId: `chart-${nanoid()}`,
-              sheetId: sheetKey,
-              sheetName: sheetName,
-              chartType: drawing.chartType || 'column',
-              dataRange: drawing.range || '',
-              position: {
-                row: drawing.range?.tl?.nativeRow || 0,
-                column: drawing.range?.tl?.nativeCol || 0,
-              },
-              size: {
-                width: 600,
-                height: 400,
-              },
-              title: drawing.title || '',
-              rawData: drawing,
-            };
-            worksheetCharts.push(chart);
+        (worksheet as any).drawings.forEach(
+          (drawing: any, drawingIndex: number) => {
+            console.log(`[fileImport] Drawing ${drawingIndex}:`, {
+              type: drawing.type,
+              chartType: drawing.chartType,
+              keys: Object.keys(drawing),
+            });
+            if (drawing.type === 'chart' || drawing.chartType) {
+              const chart: ImportedChart = {
+                chartId: `chart-${nanoid()}`,
+                sheetId: sheetKey,
+                sheetName: sheetName,
+                chartType: drawing.chartType || 'column',
+                dataRange: drawing.range || '',
+                position: {
+                  row: drawing.range?.tl?.nativeRow || 0,
+                  column: drawing.range?.tl?.nativeCol || 0,
+                },
+                size: {
+                  width: 600,
+                  height: 400,
+                },
+                title: drawing.title || '',
+                rawData: drawing,
+              };
+              worksheetCharts.push(chart);
+            }
           }
-        });
+        );
       } catch (error) {
         console.warn('[fileImport] 处理 drawings 图表时出错:', error);
       }
     }
 
     // 方法2: 检查 _charts 属性（某些版本的 ExcelJS 可能使用这个）
-    if ((worksheet as any)._charts && Array.isArray((worksheet as any)._charts)) {
+    if (
+      (worksheet as any)._charts &&
+      Array.isArray((worksheet as any)._charts)
+    ) {
       try {
         console.log(
-          `[fileImport] Sheet "${sheetName}" 发现 ${(worksheet as any)._charts.length} 个 _charts`,
+          `[fileImport] Sheet "${sheetName}" 发现 ${
+            (worksheet as any)._charts.length
+          } 个 _charts`
         );
         (worksheet as any)._charts.forEach((chart: any, chartIndex: number) => {
           console.log(`[fileImport] _chart ${chartIndex}:`, Object.keys(chart));
@@ -2023,7 +2152,9 @@ async function importExcelWithImages(
     // 将收集到的图表添加到全局收集器
     if (worksheetCharts.length > 0) {
       allCharts[sheetKey] = worksheetCharts;
-      console.log(`[fileImport] Sheet "${sheetName}" 共发现 ${worksheetCharts.length} 个图表`);
+      console.log(
+        `[fileImport] Sheet "${sheetName}" 共发现 ${worksheetCharts.length} 个图表`
+      );
     }
 
     // 兼容旧代码：同时保留局部 charts 数组
@@ -2096,7 +2227,10 @@ async function importExcelWithImages(
   }
 
   // 使用直接解析 xlsx 的方式获取透视表（ExcelJS 不支持读取透视表）
-  const parsedPivotTables = await parsePivotTablesFromXlsx(arrayBuffer, sheetNameToIdMap);
+  const parsedPivotTables = await parsePivotTablesFromXlsx(
+    arrayBuffer,
+    sheetNameToIdMap
+  );
 
   // 使用直接解析 xlsx 的方式获取排序信息（ExcelJS 不支持读取排序状态）
   const parsedSorts = await parseSortsFromXlsx(arrayBuffer, sheetIndexToIdMap);
@@ -2218,13 +2352,16 @@ function getOriginalCellValue(cell: ExcelJS.Cell): any {
 
   // 如果是富文本对象
   if (typeof value === 'object' && 'richText' in value) {
-    return (value as ExcelJS.CellRichTextValue).richText.map((rt) => rt.text).join('');
+    return (value as ExcelJS.CellRichTextValue).richText
+      .map((rt) => rt.text)
+      .join('');
   }
 
   // 如果是超链接对象
   if (typeof value === 'object' && 'hyperlink' in value) {
     return (
-      (value as ExcelJS.CellHyperlinkValue).text || (value as ExcelJS.CellHyperlinkValue).hyperlink
+      (value as ExcelJS.CellHyperlinkValue).text ||
+      (value as ExcelJS.CellHyperlinkValue).hyperlink
     );
   }
 
@@ -2245,7 +2382,12 @@ function getOriginalCellValue(cell: ExcelJS.Cell): any {
   // 其他情况尝试转换为字符串
   try {
     const str = String(value);
-    if (str !== '[object Object]' && str !== 'NaN' && str !== 'undefined' && str !== 'null') {
+    if (
+      str !== '[object Object]' &&
+      str !== 'NaN' &&
+      str !== 'undefined' &&
+      str !== 'null'
+    ) {
       return str;
     }
   } catch {
@@ -2365,7 +2507,12 @@ function getCellValue(cell: ExcelJS.Cell): any {
     // 检查数字格式是否为日期格式
     if (numFmt && isDateFormat(numFmt)) {
       // 将Excel序列号转换为日期
-      if (typeof numValue === 'number' && !isNaN(numValue) && isFinite(numValue) && numValue > 0) {
+      if (
+        typeof numValue === 'number' &&
+        !isNaN(numValue) &&
+        isFinite(numValue) &&
+        numValue > 0
+      ) {
         try {
           const date = excelSerialToDate(numValue);
           if (date && date instanceof Date && !isNaN(date.getTime())) {
@@ -2386,7 +2533,11 @@ function getCellValue(cell: ExcelJS.Cell): any {
     }
 
     // 不是日期格式或无法转换，返回原数字
-    if (typeof numValue === 'number' && !isNaN(numValue) && isFinite(numValue)) {
+    if (
+      typeof numValue === 'number' &&
+      !isNaN(numValue) &&
+      isFinite(numValue)
+    ) {
       return numValue;
     }
     // 如果数字无效，返回原始值
@@ -2449,7 +2600,10 @@ function getCellType(cell: ExcelJS.Cell, actualValue?: any): number | null {
     // 日期被格式化为字符串后，应该作为字符串类型
     return 1; // String
   }
-  if (cell.type === ExcelJS.ValueType.String || cell.type === ExcelJS.ValueType.RichText) {
+  if (
+    cell.type === ExcelJS.ValueType.String ||
+    cell.type === ExcelJS.ValueType.RichText
+  ) {
     return 1; // String
   }
   return null;
@@ -2788,8 +2942,13 @@ function convertBorder(border: Partial<ExcelJS.Borders>): any {
  * 解析单元格范围引用（如 "A1:C10" 或 "A1:C10 D1:F10"）
  */
 function parseRangeRef(
-  ref: string,
-): Array<{ startRow: number; endRow: number; startColumn: number; endColumn: number }> {
+  ref: string
+): Array<{
+  startRow: number;
+  endRow: number;
+  startColumn: number;
+  endColumn: number;
+}> {
   const ranges: Array<{
     startRow: number;
     endRow: number;
@@ -2815,7 +2974,12 @@ function parseRangeRef(
       if (singleMatch) {
         const column = columnLetterToIndex(singleMatch[1]);
         const row = parseInt(singleMatch[2], 10) - 1;
-        ranges.push({ startRow: row, endRow: row, startColumn: column, endColumn: column });
+        ranges.push({
+          startRow: row,
+          endRow: row,
+          startColumn: column,
+          endColumn: column,
+        });
       }
     }
   });
@@ -2841,7 +3005,7 @@ function columnLetterToIndex(letter: string): number {
 function convertConditionalFormatRuleForFacade(
   rule: any,
   rangeRefs: string[],
-  index: number,
+  index: number
 ): ImportedConditionalFormat | null {
   if (!rule || !rule.type) return null;
 
@@ -2857,12 +3021,14 @@ function convertConditionalFormatRuleForFacade(
     case 'dataBar':
       // 尝试从多个可能的属性中获取颜色
       const positiveColor =
-        parseExcelColor(rule.color) || parseExcelColor(rule.fillColor) || '#638EC6';
+        parseExcelColor(rule.color) ||
+        parseExcelColor(rule.fillColor) ||
+        '#638EC6';
       console.log(
         '[CF Debug] dataBar positiveColor:',
         positiveColor,
         'from rule.color:',
-        rule.color,
+        rule.color
       );
 
       return {
@@ -2907,7 +3073,11 @@ function convertConditionalFormatRuleForFacade(
           colorScale: (rule.cfvo || []).map((cfvo: any, i: number) => ({
             color:
               parseExcelColor(rule.color?.[i]) ||
-              (i === 0 ? '#F8696B' : i === (rule.cfvo?.length || 1) - 1 ? '#63BE7B' : '#FFEB84'),
+              (i === 0
+                ? '#F8696B'
+                : i === (rule.cfvo?.length || 1) - 1
+                ? '#63BE7B'
+                : '#FFEB84'),
             value: {
               type: mapCfvoType(cfvo.type),
               value: cfvo.value,
@@ -2957,8 +3127,13 @@ function convertConditionalFormatRuleForFacade(
  */
 function convertConditionalFormatRule(
   rule: any,
-  ranges: Array<{ startRow: number; endRow: number; startColumn: number; endColumn: number }>,
-  index: number,
+  ranges: Array<{
+    startRow: number;
+    endRow: number;
+    startColumn: number;
+    endColumn: number;
+  }>,
+  index: number
 ): any {
   if (!rule || !rule.type) return null;
 
@@ -3118,7 +3293,11 @@ function convertColorScaleRule(baseRule: any, rule: any): any {
       index: i,
       color:
         parseExcelColor(color) ||
-        (i === 0 ? '#F8696B' : i === cfvoList.length - 1 ? '#63BE7B' : '#FFEB84'),
+        (i === 0
+          ? '#F8696B'
+          : i === cfvoList.length - 1
+          ? '#63BE7B'
+          : '#FFEB84'),
       value: {
         type: mapCfvoType(cfvo?.type || 'min'),
         value: cfvo?.value,
@@ -3330,7 +3509,10 @@ function parseNumFormat(numFmt: string): any {
   }
 
   // 检测是否是科学计数法
-  if (numFmt.toUpperCase().includes('E+') || numFmt.toUpperCase().includes('E-')) {
+  if (
+    numFmt.toUpperCase().includes('E+') ||
+    numFmt.toUpperCase().includes('E-')
+  ) {
     result.isScientific = true;
   }
 
@@ -3348,16 +3530,28 @@ function parseNumFormat(numFmt: string): any {
   }
 
   // 检测日期/时间格式
-  const dateTimePatterns = ['yyyy', 'yy', 'mm', 'dd', 'hh', 'ss', 'AM/PM', 'am/pm'];
+  const dateTimePatterns = [
+    'yyyy',
+    'yy',
+    'mm',
+    'dd',
+    'hh',
+    'ss',
+    'AM/PM',
+    'am/pm',
+  ];
   const isDateTime = dateTimePatterns.some((pattern) =>
-    numFmt.toLowerCase().includes(pattern.toLowerCase()),
+    numFmt.toLowerCase().includes(pattern.toLowerCase())
   );
   if (isDateTime) {
     result.isDateTime = true;
   }
 
   // 检测负数格式（通常用红色或括号表示）
-  if (numFmt.includes('[Red]') || (numFmt.includes('(') && numFmt.includes(')'))) {
+  if (
+    numFmt.includes('[Red]') ||
+    (numFmt.includes('(') && numFmt.includes(')'))
+  ) {
     result.hasNegativeFormat = true;
   }
 
@@ -3369,10 +3563,26 @@ function parseNumFormat(numFmt: string): any {
     '0': { type: 'number', decimalPlaces: 0 },
     '0.00': { type: 'number', decimalPlaces: 2 },
     '#,##0': { type: 'number', decimalPlaces: 0, hasThousandsSeparator: true },
-    '#,##0.00': { type: 'number', decimalPlaces: 2, hasThousandsSeparator: true },
-    '#,##0.0': { type: 'number', decimalPlaces: 1, hasThousandsSeparator: true },
-    '#,##0.000': { type: 'number', decimalPlaces: 3, hasThousandsSeparator: true },
-    '#,##0.0000': { type: 'number', decimalPlaces: 4, hasThousandsSeparator: true },
+    '#,##0.00': {
+      type: 'number',
+      decimalPlaces: 2,
+      hasThousandsSeparator: true,
+    },
+    '#,##0.0': {
+      type: 'number',
+      decimalPlaces: 1,
+      hasThousandsSeparator: true,
+    },
+    '#,##0.000': {
+      type: 'number',
+      decimalPlaces: 3,
+      hasThousandsSeparator: true,
+    },
+    '#,##0.0000': {
+      type: 'number',
+      decimalPlaces: 4,
+      hasThousandsSeparator: true,
+    },
     '0.0': { type: 'number', decimalPlaces: 1 },
     '0.000': { type: 'number', decimalPlaces: 3 },
     '0.0000': { type: 'number', decimalPlaces: 4 },
@@ -3385,17 +3595,62 @@ function parseNumFormat(numFmt: string): any {
     '0.00E+00': { type: 'scientific', decimalPlaces: 2, isScientific: true },
     '##0.0E+0': { type: 'scientific', decimalPlaces: 1, isScientific: true },
     // 货币（人民币）
-    '¥#,##0': { type: 'currency', decimalPlaces: 0, isCurrency: true, currencySymbol: '¥' },
-    '¥#,##0.00': { type: 'currency', decimalPlaces: 2, isCurrency: true, currencySymbol: '¥' },
-    '"¥"#,##0': { type: 'currency', decimalPlaces: 0, isCurrency: true, currencySymbol: '¥' },
-    '"¥"#,##0.00': { type: 'currency', decimalPlaces: 2, isCurrency: true, currencySymbol: '¥' },
+    '¥#,##0': {
+      type: 'currency',
+      decimalPlaces: 0,
+      isCurrency: true,
+      currencySymbol: '¥',
+    },
+    '¥#,##0.00': {
+      type: 'currency',
+      decimalPlaces: 2,
+      isCurrency: true,
+      currencySymbol: '¥',
+    },
+    '"¥"#,##0': {
+      type: 'currency',
+      decimalPlaces: 0,
+      isCurrency: true,
+      currencySymbol: '¥',
+    },
+    '"¥"#,##0.00': {
+      type: 'currency',
+      decimalPlaces: 2,
+      isCurrency: true,
+      currencySymbol: '¥',
+    },
     // 货币（美元）
-    '$#,##0': { type: 'currency', decimalPlaces: 0, isCurrency: true, currencySymbol: '$' },
-    '$#,##0.00': { type: 'currency', decimalPlaces: 2, isCurrency: true, currencySymbol: '$' },
-    '"$"#,##0': { type: 'currency', decimalPlaces: 0, isCurrency: true, currencySymbol: '$' },
-    '"$"#,##0.00': { type: 'currency', decimalPlaces: 2, isCurrency: true, currencySymbol: '$' },
+    '$#,##0': {
+      type: 'currency',
+      decimalPlaces: 0,
+      isCurrency: true,
+      currencySymbol: '$',
+    },
+    '$#,##0.00': {
+      type: 'currency',
+      decimalPlaces: 2,
+      isCurrency: true,
+      currencySymbol: '$',
+    },
+    '"$"#,##0': {
+      type: 'currency',
+      decimalPlaces: 0,
+      isCurrency: true,
+      currencySymbol: '$',
+    },
+    '"$"#,##0.00': {
+      type: 'currency',
+      decimalPlaces: 2,
+      isCurrency: true,
+      currencySymbol: '$',
+    },
     // 会计格式
-    '_-¥* #,##0_-': { type: 'accounting', decimalPlaces: 0, isCurrency: true, currencySymbol: '¥' },
+    '_-¥* #,##0_-': {
+      type: 'accounting',
+      decimalPlaces: 0,
+      isCurrency: true,
+      currencySymbol: '¥',
+    },
     '_-¥* #,##0.00_-': {
       type: 'accounting',
       decimalPlaces: 2,
@@ -3448,7 +3703,7 @@ export async function importCsv(
     sheetName?: string; // 工作表名称
     skipEmptyLines?: boolean; // 跳过空行，默认 true
     trimValues?: boolean; // 修剪单元格值的空白，默认 true
-  } = {},
+  } = {}
 ): Promise<IWorkbookData> {
   const {
     delimiter,
@@ -3504,11 +3759,14 @@ export async function importCsv(
       row.map((cell) => {
         const trimmedCell = trimValues ? cell.trim() : cell;
         return convertCellType(trimmedCell);
-      }),
+      })
     );
 
     // 构建工作表
-    const sheet: IWorksheetData = buildSheetFrom2DArray(sheetName, processedRows);
+    const sheet: IWorksheetData = buildSheetFrom2DArray(
+      sheetName,
+      processedRows
+    );
 
     // 如果有表头，为表头行添加样式
     if (hasHeader && processedRows.length > 0) {
@@ -3548,7 +3806,11 @@ export async function importCsv(
       // 计算每列的最大宽度
       processedRows.forEach((row, rowIndex) => {
         row.forEach((cell, colIndex) => {
-          const cellStr = String(cell);
+          const cellValue =
+            cell && typeof cell === 'object' && 'v' in (cell as any)
+              ? (cell as any).v
+              : cell;
+          const cellStr = String(cellValue);
           // 考虑中文字符占用更多空间
           const chineseChars = (cellStr.match(/[\u4e00-\u9fa5]/g) || []).length;
           const otherChars = cellStr.length - chineseChars;
@@ -3556,7 +3818,7 @@ export async function importCsv(
 
           columnWidths[colIndex] = Math.max(
             columnWidths[colIndex] || 80, // 最小宽度
-            Math.min(estimatedWidth, 400), // 最大宽度
+            Math.min(estimatedWidth, 400) // 最大宽度
           );
         });
       });
@@ -3596,7 +3858,8 @@ function detectDelimiter(text: string): string {
     firstLines.forEach((line) => {
       if (!line.trim()) return;
 
-      const count = (line.match(new RegExp(`\\${delimiter}`, 'g')) || []).length;
+      const count = (line.match(new RegExp(`\\${delimiter}`, 'g')) || [])
+        .length;
 
       if (firstLineCount === -1) {
         firstLineCount = count;
@@ -3624,7 +3887,11 @@ function detectDelimiter(text: string): string {
 /**
  * 解析 CSV 文本（改进版 - 支持引号内的分隔符和换行）
  */
-function parseCsvText(text: string, delimiter: string, skipEmptyLines: boolean): string[][] {
+function parseCsvText(
+  text: string,
+  delimiter: string,
+  skipEmptyLines: boolean
+): string[][] {
   const rows: string[][] = [];
   let currentRow: string[] = [];
   let currentCell = '';
@@ -3714,8 +3981,10 @@ function convertCellType(value: string): any {
 
   // 布尔值
   const lowerValue = value.toLowerCase();
-  if (lowerValue === 'true' || lowerValue === 'yes' || lowerValue === 'y') return true;
-  if (lowerValue === 'false' || lowerValue === 'no' || lowerValue === 'n') return false;
+  if (lowerValue === 'true' || lowerValue === 'yes' || lowerValue === 'y')
+    return true;
+  if (lowerValue === 'false' || lowerValue === 'no' || lowerValue === 'n')
+    return false;
 
   // 数字（包括负数、小数、科学计数法、货币符号）
   const cleanedValue = value.replace(/[,$¥€£]/g, '');
@@ -3727,8 +3996,32 @@ function convertCellType(value: string): any {
 
   // 百分比
   if (value.endsWith('%')) {
-    const num = parseFloat(value.slice(0, -1));
-    if (!isNaN(num)) return num / 100;
+    const raw = value.slice(0, -1).trim();
+    // 按输入的小数位数显示（保留尾随 0，例如 1.20% -> 2 位）
+    const dotIndex = raw.indexOf('.');
+    const decimalPlaces =
+      dotIndex >= 0 && dotIndex < raw.length - 1 ? raw.slice(dotIndex + 1).length : 0;
+
+    // 解析数值：移除千分位逗号，兼容 "-0.49%" 这类输入
+    const num = parseFloat(raw.replace(/,/g, ''));
+    if (!isNaN(num)) {
+      // Univer/Excel 内部百分比以小数存储，但需要配合 numberFormat 才会显示成 xx%
+      const decimal = num / 100;
+      const safeDecimalPlaces = Math.max(0, Math.min(decimalPlaces, 10));
+      const pattern = safeDecimalPlaces === 0 ? '0%' : `0.${'0'.repeat(safeDecimalPlaces)}%`;
+      return {
+        v: decimal,
+        t: 2, // number
+        s: {
+          n: {
+            pattern,
+            type: 'percent',
+            decimalPlaces: safeDecimalPlaces,
+            isPercent: true,
+          },
+        },
+      };
+    }
   }
 
   // 日期（支持多种格式）
@@ -3755,7 +4048,11 @@ function convertCellType(value: string): any {
   if (datePattern3.test(value)) {
     const matches = value.match(/(\d{4})年(\d{1,2})月(\d{1,2})日/);
     if (matches) {
-      const date = new Date(parseInt(matches[1]), parseInt(matches[2]) - 1, parseInt(matches[3]));
+      const date = new Date(
+        parseInt(matches[1]),
+        parseInt(matches[2]) - 1,
+        parseInt(matches[3])
+      );
       if (!isNaN(date.getTime())) {
         return date.toLocaleDateString('zh-CN');
       }
@@ -3947,14 +4244,30 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
     }
 
     // 验证年份、月份、日期是否在合理范围内
-    if (year < 1900 || year > 2100 || month < 1 || month > 12 || day < 1 || day > 31) {
-      console.warn('formatDateByPattern: 日期值超出合理范围', { year, month, day });
+    if (
+      year < 1900 ||
+      year > 2100 ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31
+    ) {
+      console.warn('formatDateByPattern: 日期值超出合理范围', {
+        year,
+        month,
+        day,
+      });
       return '';
     }
 
     // 辅助函数：安全格式化并检查 NaN
     const safeFormat = (str: string): string => {
-      if (!str || str.includes('NaN') || str.includes('undefined') || str.includes('null')) {
+      if (
+        !str ||
+        str.includes('NaN') ||
+        str.includes('undefined') ||
+        str.includes('null')
+      ) {
         return '';
       }
       return str;
@@ -3975,10 +4288,9 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
         const mm = String(minutes).padStart(2, '0');
         const ss = String(seconds).padStart(2, '0');
         if (numFmt.includes('mm/dd')) {
-          const result = `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(
-            2,
-            '0',
-          )} ${hours}:${mm}:${ss}`;
+          const result = `${year}/${String(month).padStart(2, '0')}/${String(
+            day
+          ).padStart(2, '0')} ${hours}:${mm}:${ss}`;
           return safeFormat(result);
         }
         const result = `${year}/${month}/${day} ${hours}:${mm}:${ss}`;
@@ -3986,7 +4298,9 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
       }
       // 纯日期格式
       if (numFmt.includes('mm') && numFmt.includes('dd')) {
-        const result = `${year}/${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+        const result = `${year}/${String(month).padStart(2, '0')}/${String(
+          day
+        ).padStart(2, '0')}`;
         return safeFormat(result);
       }
       const result = `${year}/${month}/${day}`;
@@ -3996,7 +4310,9 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
     // yyyy-mm-dd 格式
     if (numFmt.includes('yyyy') && numFmt.includes('-')) {
       if (numFmt.includes('mm') && numFmt.includes('dd')) {
-        const result = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        const result = `${year}-${String(month).padStart(2, '0')}-${String(
+          day
+        ).padStart(2, '0')}`;
         return safeFormat(result);
       }
       const result = `${year}-${month}-${day}`;
@@ -4007,7 +4323,9 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
     if (numFmt.match(/m+\/d+\/y+/i)) {
       const yy = String(year).slice(-2);
       if (numFmt.includes('mm') && numFmt.includes('dd')) {
-        const result = `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}/${yy}`;
+        const result = `${String(month).padStart(2, '0')}/${String(
+          day
+        ).padStart(2, '0')}/${yy}`;
         return safeFormat(result);
       }
       const result = `${month}/${day}/${yy}`;
@@ -4018,7 +4336,9 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
     if (numFmt.match(/d+\/m+\/y+/i)) {
       const yy = String(year).slice(-2);
       if (numFmt.includes('mm') && numFmt.includes('dd')) {
-        const result = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${yy}`;
+        const result = `${String(day).padStart(2, '0')}/${String(
+          month
+        ).padStart(2, '0')}/${yy}`;
         return safeFormat(result);
       }
       const result = `${day}/${month}/${yy}`;
@@ -4026,7 +4346,11 @@ function formatDateByPattern(date: Date, numFmt?: string): string {
     }
 
     // yyyy年m月d日 格式
-    if (numFmt.includes('年') && numFmt.includes('月') && numFmt.includes('日')) {
+    if (
+      numFmt.includes('年') &&
+      numFmt.includes('月') &&
+      numFmt.includes('日')
+    ) {
       const result = `${year}年${month}月${day}日`;
       return safeFormat(result);
     }
@@ -4095,13 +4419,17 @@ async function insertImagesAfterImport(
     continueOnError?: boolean;
     /** 插入完成回调 */
     onProgress?: (current: number, total: number, image: ImportedImage) => void;
-  } = {},
+  } = {}
 ): Promise<{
   success: number;
   failed: number;
   errors: Array<{ image: ImportedImage; error: Error }>;
 }> {
-  const { defaultType = ImageType.FLOATING, continueOnError = true, onProgress } = options;
+  const {
+    defaultType = ImageType.FLOATING,
+    continueOnError = true,
+    onProgress,
+  } = options;
 
   const result = {
     success: 0,
@@ -4128,14 +4456,19 @@ async function insertImagesAfterImport(
       // 获取对应的工作表
       const fWorksheet = fWorkbook.getSheetBySheetId(actualSheetId);
       if (!fWorksheet) {
-        throw new Error(`找不到工作表: ${image.sheetName} (ID: ${actualSheetId})`);
+        throw new Error(
+          `找不到工作表: ${image.sheetName} (ID: ${actualSheetId})`
+        );
       }
 
       const imageType = image.type || defaultType;
 
       if (imageType === ImageType.CELL) {
         // 单元格图片：嵌入到指定单元格内
-        const cellAddress = getCellAddress(image.position.row, image.position.column);
+        const cellAddress = getCellAddress(
+          image.position.row,
+          image.position.column
+        );
         const fRange = fWorksheet.getRange(cellAddress);
 
         if (!fRange) {
@@ -4213,7 +4546,7 @@ async function insertFloatingImages(
     row: number;
     offsetX?: number;
     offsetY?: number;
-  }>,
+  }>
 ): Promise<{ success: number; failed: number }> {
   const result = { success: 0, failed: 0 };
 
@@ -4224,7 +4557,7 @@ async function insertFloatingImages(
         img.column,
         img.row,
         img.offsetX || 0,
-        img.offsetY || 0,
+        img.offsetY || 0
       );
       result.success++;
     } catch (error) {
@@ -4248,7 +4581,7 @@ async function insertCellImages(
   images: Array<{
     source: string;
     cellAddress: string; // 如 'A1', 'B2'
-  }>,
+  }>
 ): Promise<{ success: number; failed: number }> {
   const result = { success: 0, failed: 0 };
 
@@ -4354,7 +4687,7 @@ export interface FileImportResult {
  */
 export async function importFile(
   file: File,
-  options: FileImportOptions = {},
+  options: FileImportOptions = {}
 ): Promise<FileImportResult> {
   const { includeImages = true } = options;
 
@@ -4368,7 +4701,15 @@ export async function importFile(
 
   // 使用统一的内部函数处理文件导入
   const result = await handleFileImport(file, fileType, includeImages);
-  const { workbookData, images, conditionalFormats, filters, sorts, charts, pivotTables } = result;
+  const {
+    workbookData,
+    images,
+    conditionalFormats,
+    filters,
+    sorts,
+    charts,
+    pivotTables,
+  } = result;
 
   // 返回结果
   return {
@@ -4390,7 +4731,7 @@ export async function importFile(
  */
 export async function addConditionalFormatsToWorkbook(
   univerAPI: any,
-  conditionalFormats: Record<string, ImportedConditionalFormat[]>,
+  conditionalFormats: Record<string, ImportedConditionalFormat[]>
 ): Promise<void> {
   const fWorkbook = univerAPI.getActiveWorkbook();
   if (!fWorkbook) {
@@ -4438,7 +4779,11 @@ function colToNum1Based(col: string): number {
  * @param maxCols 工作表最大列数
  * @returns 裁剪后的范围字符串，如果范围完全超出边界则返回 null
  */
-function clipRangeToBounds(rangeStr: string, maxRows: number, maxCols: number): string | null {
+function clipRangeToBounds(
+  rangeStr: string,
+  maxRows: number,
+  maxCols: number
+): string | null {
   if (!rangeStr || typeof rangeStr !== 'string') {
     return null;
   }
@@ -4474,8 +4819,8 @@ function clipRangeToBounds(rangeStr: string, maxRows: number, maxCols: number): 
   if (originalEndCol > maxCols) {
     console.warn(
       `[fileImport] 条件格式范围 ${rangeStr} 的列超出边界（最大列: ${maxCols}），已裁剪到 ${numToCol(
-        endCol,
-      )}${endRow}`,
+        endCol
+      )}${endRow}`
     );
   }
 
@@ -4491,7 +4836,7 @@ function clipRangeToBounds(rangeStr: string, maxRows: number, maxCols: number): 
 
 async function addSingleConditionalFormat(
   fWorksheet: any,
-  cfRule: ImportedConditionalFormat,
+  cfRule: ImportedConditionalFormat
 ): Promise<void> {
   const { type, ranges, config } = cfRule;
   if (!ranges || ranges.length === 0) return;
@@ -4505,7 +4850,9 @@ async function addSingleConditionalFormat(
     .map((r: string) => {
       const clippedRange = clipRangeToBounds(r, maxRows, maxCols);
       if (!clippedRange) {
-        console.warn(`[fileImport] 条件格式范围 ${r} 超出工作表边界或无效，已跳过`);
+        console.warn(
+          `[fileImport] 条件格式范围 ${r} 超出工作表边界或无效，已跳过`
+        );
         return null;
       }
       return clippedRange;
@@ -4576,11 +4923,13 @@ async function addSingleConditionalFormat(
     case 'colorScale':
       if (config.colorScale && Array.isArray(config.colorScale)) {
         // setColorScale 参数格式：[{ index, color, value: { type, value? } }]
-        const colorScaleConfig = config.colorScale.map((cs: any, index: number) => ({
-          index,
-          color: cs.color,
-          value: cs.value || { type: 'num', value: 0 },
-        }));
+        const colorScaleConfig = config.colorScale.map(
+          (cs: any, index: number) => ({
+            index,
+            color: cs.color,
+            value: cs.value || { type: 'num', value: 0 },
+          })
+        );
         ruleBuilder = builder.setColorScale(colorScaleConfig);
       }
       break;
@@ -4618,7 +4967,11 @@ async function addSingleConditionalFormat(
 
   if (rule) {
     fWorksheet.addConditionalFormattingRule(rule);
-    console.log(`[fileImport] 已添加 ${type} 条件格式规则，范围: ${validRanges.join(', ')}`);
+    console.log(
+      `[fileImport] 已添加 ${type} 条件格式规则，范围: ${validRanges.join(
+        ', '
+      )}`
+    );
   }
 }
 
@@ -4630,7 +4983,7 @@ async function addSingleConditionalFormat(
  */
 export async function addFiltersToWorkbook(
   univerAPI: any,
-  filters: Record<string, ImportedFilter>,
+  filters: Record<string, ImportedFilter>
 ): Promise<void> {
   const fWorkbook = univerAPI.getActiveWorkbook();
   if (!fWorkbook) {
@@ -4737,7 +5090,7 @@ const EXCEL_TO_UNIVER_CHART_TYPE: Record<string, string> = {
  */
 export async function addChartsToWorkbook(
   univerAPI: any,
-  charts: Record<string, ImportedChart[]>,
+  charts: Record<string, ImportedChart[]>
 ): Promise<void> {
   const fWorkbook = univerAPI.getActiveWorkbook();
   if (!fWorkbook) {
@@ -4765,17 +5118,23 @@ export async function addChartsToWorkbook(
 
     for (const chartInfo of chartList) {
       try {
-        const { chartType, dataRange, position, size, title, dataSheetName } = chartInfo;
+        const { chartType, dataRange, position, size, title, dataSheetName } =
+          chartInfo;
 
         // 如果没有数据范围，跳过
         if (!dataRange) {
-          console.warn(`[fileImport] 图表没有数据范围，跳过:`, chartInfo.chartId);
+          console.warn(
+            `[fileImport] 图表没有数据范围，跳过:`,
+            chartInfo.chartId
+          );
           continue;
         }
 
         // 获取 Univer 的图表类型枚举
-        const univerChartTypeName = EXCEL_TO_UNIVER_CHART_TYPE[chartType] || 'Column';
-        const univerChartType = univerAPI.Enum?.ChartType?.[univerChartTypeName];
+        const univerChartTypeName =
+          EXCEL_TO_UNIVER_CHART_TYPE[chartType] || 'Column';
+        const univerChartType =
+          univerAPI.Enum?.ChartType?.[univerChartTypeName];
 
         if (univerChartType === undefined) {
           console.warn(`[fileImport] 未找到图表类型: ${univerChartTypeName}`);
@@ -4794,7 +5153,9 @@ export async function addChartsToWorkbook(
 
         // 设置数据范围
         // 如果数据源在不同的工作表，需要添加工作表名称前缀
-        const fullRange = dataSheetName ? `'${dataSheetName}'!${dataRange}` : dataRange;
+        const fullRange = dataSheetName
+          ? `'${dataSheetName}'!${dataRange}`
+          : dataRange;
         chartBuilder.addRange(fullRange);
 
         // 设置位置
@@ -4802,7 +5163,7 @@ export async function addChartsToWorkbook(
           position.row,
           position.column,
           position.rowOffset,
-          position.columnOffset,
+          position.columnOffset
         );
 
         // 设置尺寸
@@ -4840,7 +5201,7 @@ export async function addChartsToWorkbook(
 export async function addImagesToWorkbook(
   univerAPI: any,
   images: ImportedImage[],
-  options: ImageInsertOptions = {},
+  options: ImageInsertOptions = {}
 ): Promise<{
   success: number;
   failed: number;
@@ -4867,7 +5228,7 @@ export async function addImagesToWorkbook(
  */
 export async function addPivotTablesToWorkbook(
   univerAPI: any,
-  pivotTables: ImportedPivotTable[],
+  pivotTables: ImportedPivotTable[]
 ): Promise<void> {
   if (!pivotTables || pivotTables.length === 0) {
     return;
@@ -4895,7 +5256,7 @@ export async function addPivotTablesToWorkbook(
       }
       if (!sourceSheet) {
         console.warn(
-          `[fileImport] 未找到数据源工作表: sheetId=${sourceRange.sheetId}, sheetName=${sourceRange.sheetName}`,
+          `[fileImport] 未找到数据源工作表: sheetId=${sourceRange.sheetId}, sheetName=${sourceRange.sheetName}`
         );
         continue;
       }
@@ -4956,14 +5317,25 @@ export async function addPivotTablesToWorkbook(
         const maxCols = targetSheet.getMaxColumns?.() || 1000;
         clearStartRow = Math.max(0, Math.min(clearStartRow, maxRows - 1));
         clearStartCol = Math.max(0, Math.min(clearStartCol, maxCols - 1));
-        clearEndRow = Math.max(clearStartRow, Math.min(clearEndRow, maxRows - 1));
-        clearEndCol = Math.max(clearStartCol, Math.min(clearEndCol, maxCols - 1));
+        clearEndRow = Math.max(
+          clearStartRow,
+          Math.min(clearEndRow, maxRows - 1)
+        );
+        clearEndCol = Math.max(
+          clearStartCol,
+          Math.min(clearEndCol, maxCols - 1)
+        );
 
         const numRows = clearEndRow - clearStartRow + 1;
         const numCols = clearEndCol - clearStartCol + 1;
 
         // 使用 getRange 获取范围对象
-        const clearRange = targetSheet.getRange(clearStartRow, clearStartCol, numRows, numCols);
+        const clearRange = targetSheet.getRange(
+          clearStartRow,
+          clearStartCol,
+          numRows,
+          numCols
+        );
         if (clearRange) {
           // 方法1: 使用 setValues 清空值
           const emptyValues = Array(numRows)
@@ -4974,9 +5346,15 @@ export async function addPivotTablesToWorkbook(
           // 方法2: 尝试使用 clearContent 或类似方法清空单元格（如果 API 支持）
           try {
             // 尝试使用 clearContent 方法（如果存在）
-            if (clearRange.clearContent && typeof clearRange.clearContent === 'function') {
+            if (
+              clearRange.clearContent &&
+              typeof clearRange.clearContent === 'function'
+            ) {
               clearRange.clearContent();
-            } else if (clearRange.clear && typeof clearRange.clear === 'function') {
+            } else if (
+              clearRange.clear &&
+              typeof clearRange.clear === 'function'
+            ) {
               clearRange.clear();
             } else {
               // 如果 API 不支持批量清空，逐个清空单元格
@@ -4988,9 +5366,15 @@ export async function addPivotTablesToWorkbook(
                       // 清空单元格值
                       cell.setValue(null);
                       // 如果支持清空格式，也清空格式
-                      if (cell.clearFormat && typeof cell.clearFormat === 'function') {
+                      if (
+                        cell.clearFormat &&
+                        typeof cell.clearFormat === 'function'
+                      ) {
                         cell.clearFormat();
-                      } else if (cell.clear && typeof cell.clear === 'function') {
+                      } else if (
+                        cell.clear &&
+                        typeof cell.clear === 'function'
+                      ) {
                         cell.clear();
                       }
                     }
@@ -5006,12 +5390,15 @@ export async function addPivotTablesToWorkbook(
           }
         }
       } catch (clearError) {
-        console.warn(`[fileImport] 清空透视表目标区域失败: ${clearError.message}`, {
-          clearStartRow,
-          clearStartCol,
-          clearEndRow,
-          clearEndCol,
-        });
+        console.warn(
+          `[fileImport] 清空透视表目标区域失败: ${clearError.message}`,
+          {
+            clearStartRow,
+            clearStartCol,
+            clearEndRow,
+            clearEndCol,
+          }
+        );
         // 清空失败不影响后续操作，但可能会弹出确认对话框
       }
 
@@ -5020,7 +5407,9 @@ export async function addPivotTablesToWorkbook(
       const PivotTableFiledAreaEnum = univerAPI.Enum?.PivotTableFiledAreaEnum;
 
       if (!PositionTypeEnum || !PivotTableFiledAreaEnum) {
-        console.warn('[fileImport] 未找到透视表相关枚举类型，请确保已加载透视表插件');
+        console.warn(
+          '[fileImport] 未找到透视表相关枚举类型，请确保已加载透视表插件'
+        );
         continue;
       }
 
@@ -5030,7 +5419,11 @@ export async function addPivotTablesToWorkbook(
       // 创建透视表
       let fPivotTable: any = null;
       try {
-        fPivotTable = await fWorkbook.addPivotTable(sourceInfo, positionType, anchorCellInfo);
+        fPivotTable = await fWorkbook.addPivotTable(
+          sourceInfo,
+          positionType,
+          anchorCellInfo
+        );
       } catch (addError) {
         continue;
       }
@@ -5064,7 +5457,11 @@ export async function addPivotTablesToWorkbook(
                 // 添加字段配置
                 // 添加行字段
                 for (let i = 0; i < fields.rowFields.length; i++) {
-                  await fPivotTable.addField(fields.rowFields[i], PivotTableFiledAreaEnum.Row, i);
+                  await fPivotTable.addField(
+                    fields.rowFields[i],
+                    PivotTableFiledAreaEnum.Row,
+                    i
+                  );
                 }
 
                 // 添加列字段
@@ -5072,7 +5469,7 @@ export async function addPivotTablesToWorkbook(
                   await fPivotTable.addField(
                     fields.colFields[i],
                     PivotTableFiledAreaEnum.Column,
-                    i,
+                    i
                   );
                 }
 
@@ -5081,7 +5478,7 @@ export async function addPivotTablesToWorkbook(
                   await fPivotTable.addField(
                     fields.valueFields[i],
                     PivotTableFiledAreaEnum.Value,
-                    i,
+                    i
                   );
                 }
 
@@ -5090,7 +5487,7 @@ export async function addPivotTablesToWorkbook(
                   await fPivotTable.addField(
                     fields.filterFields[i],
                     PivotTableFiledAreaEnum.Filter,
-                    i,
+                    i
                   );
                 }
 
@@ -5101,7 +5498,7 @@ export async function addPivotTablesToWorkbook(
               listenerDisposable?.dispose?.();
               reject(err);
             }
-          },
+          }
         );
       });
 
@@ -5112,7 +5509,9 @@ export async function addPivotTablesToWorkbook(
   }
 
   if (successCount > 0) {
-    console.log(`[fileImport] 透视表导入完成: ${successCount}/${pivotTables.length}`);
+    console.log(
+      `[fileImport] 透视表导入完成: ${successCount}/${pivotTables.length}`
+    );
   }
 }
 
@@ -5126,7 +5525,7 @@ export async function addPivotTablesToWorkbook(
  */
 export async function addSortsToWorkbook(
   univerAPI: any,
-  sorts: Record<string, ImportedSort>,
+  sorts: Record<string, ImportedSort>
 ): Promise<void> {
   if (!univerAPI || !sorts || Object.keys(sorts).length === 0) {
     return;
@@ -5181,6 +5580,8 @@ export async function addSortsToWorkbook(
   }
 
   if (successCount > 0) {
-    console.log(`[fileImport] 排序导入完成: ${successCount}/${Object.keys(sorts).length}`);
+    console.log(
+      `[fileImport] 排序导入完成: ${successCount}/${Object.keys(sorts).length}`
+    );
   }
 }

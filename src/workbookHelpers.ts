@@ -16,6 +16,13 @@ export const DEFAULT_COLUMN_COUNT = 26;
 export const DEFAULT_COLUMN_WIDTH = 73;
 export const DEFAULT_ROW_HEIGHT = 24;
 
+/**
+ * 判断是否为普通对象（排除 null/数组）
+ */
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
 // ========== 类型定义 ==========
 export interface IWorkbookItem {
   documentId: string;
@@ -104,22 +111,44 @@ export function getWorkbookData(params: {
 /**
  * 将二维数组转换成 IWorksheetData 的 cellData 结构（行、列均为数字索引）
  */
-function arrayToCellData(data: unknown[][]): { [row: number]: { [col: number]: ICellData } } {
+function arrayToCellData(data: any[][]): { [row: number]: { [col: number]: ICellData } } {
   const cellData: { [row: number]: { [col: number]: ICellData } } = {};
 
   data.forEach((row, rowIndex) => {
     if (!cellData[rowIndex]) cellData[rowIndex] = {};
     row.forEach((value, colIndex) => {
+      // 支持直接传入 ICellData（例如 CSV 推断出百分比/格式时）
+      const isCellLike =
+        isObject(value) &&
+        (Object.prototype.hasOwnProperty.call(value, 'v') ||
+          Object.prototype.hasOwnProperty.call(value, 'f') ||
+          Object.prototype.hasOwnProperty.call(value, 'p') ||
+          Object.prototype.hasOwnProperty.call(value, 's') ||
+          Object.prototype.hasOwnProperty.call(value, 'link'));
+
+      if (isCellLike) {
+        const v = (value as any).v;
+        const hasValue = v !== undefined && v !== null && v !== ''; // 注意：0 是有效值
+        const hasOther =
+          !!(value as any).f || !!(value as any).p || !!(value as any).link || !!(value as any).s;
+
+        // 仅在有内容时填充 cell，避免生成庞大的稀疏表
+        if (hasValue || hasOther) {
+          cellData[rowIndex][colIndex] = value as ICellData;
+        }
+        return;
+      }
+
       // 仅在有值时填充 cell，避免生成庞大的稀疏表
       if (value !== undefined && value !== null && value !== '') {
-        const cell: ICellData = { v: value as string | number | boolean };
+        const cell: ICellData = { v: value };
         // 简单类型标记（可选）
         if (typeof value === 'number') {
-          (cell as Record<string, unknown>).t = 2; // number
+          (cell as any).t = 2; // number
         } else if (typeof value === 'boolean') {
-          (cell as Record<string, unknown>).t = 3; // boolean
+          (cell as any).t = 3; // boolean
         } else {
-          (cell as Record<string, unknown>).t = 1; // string / others
+          (cell as any).t = 1; // string / others
         }
         cellData[rowIndex][colIndex] = cell;
       }
